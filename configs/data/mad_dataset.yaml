@@ -1,0 +1,435 @@
+# MAD Dataset Configuration
+# Military Audio Detection Dataset - Core dataset for SereneSense
+# Dataset: https://zenodo.org/record/7088442
+
+# Dataset Information
+dataset:
+  name: "MAD"
+  full_name: "Military Audio Detection Dataset"
+  version: "1.0"
+  description: "Audio samples of military vehicles for detection and classification"
+  
+  # Citation information
+  citation: |
+    "MAD: A Military Audio Detection Dataset for Audio-Based Detection of Military Vehicles"
+    Zhang et al., 2022
+    DOI: 10.5281/zenodo.7088442
+    
+  # License information
+  license:
+    type: "CC BY 4.0"
+    url: "https://creativecommons.org/licenses/by/4.0/"
+    commercial_use: true
+    
+  # Dataset statistics
+  statistics:
+    total_samples: 8075              # Total number of audio samples
+    total_duration_hours: 8.96       # Total duration in hours
+    classes: 7                       # Number of classes
+    sample_rate: 16000               # Original sample rate (Hz)
+    bit_depth: 16                    # Original bit depth
+    format: "wav"                    # Audio format
+
+# Data Source Configuration
+source:
+  # Download configuration
+  download:
+    url: "kagglehub:junewookim/mad-dataset-military-audio-dataset"
+    # Note: MAD dataset is now hosted on Kaggle
+    # Correct dataset: https://www.kaggle.com/datasets/junewookim/mad-dataset-military-audio-dataset
+    # Old URLs (broken):
+    #   - Zenodo: https://zenodo.org/record/7088442/files/MAD_dataset.zip
+    #   - Old Kaggle: kaggle:kaen2891/mad-dataset
+    checksum: null                   # kagglehub handles integrity
+    size_mb: 2843                    # Compressed size in MB
+    
+  # Extraction configuration
+  extraction:
+    target_dir: "data/raw/mad"       # Target extraction directory
+    archive_format: "zip"            # Archive format
+    preserve_structure: true         # Preserve directory structure
+    
+  # Verification
+  verification:
+    verify_checksum: true            # Verify file integrity
+    verify_structure: true           # Verify expected structure
+    verify_samples: true             # Verify random samples
+
+# Class Configuration
+classes:
+  # Class definitions
+  definitions:
+    0:
+      name: "Helicopter"
+      description: "Military and civilian helicopters"
+      count: 1200                    # Number of samples
+      duration_hours: 1.33           # Total duration
+      
+    1:
+      name: "Fighter Aircraft"
+      description: "Military fighter jets and combat aircraft"
+      count: 1100                    # Number of samples
+      duration_hours: 1.22           # Total duration
+      
+    2:
+      name: "Military Vehicle"
+      description: "Ground military vehicles (tanks, APCs, etc.)"
+      count: 1500                    # Number of samples
+      duration_hours: 1.67           # Total duration
+      
+    3:
+      name: "Truck"
+      description: "Military and civilian trucks"
+      count: 1300                    # Number of samples
+      duration_hours: 1.44           # Total duration
+      
+    4:
+      name: "Footsteps"
+      description: "Military personnel footsteps and movement"
+      count: 1200                    # Number of samples
+      duration_hours: 1.33           # Total duration
+      
+    5:
+      name: "Speech"
+      description: "Military communication and speech"
+      count: 1200                    # Number of samples
+      duration_hours: 1.33           # Total duration
+      
+    6:
+      name: "Background"
+      description: "Environmental background noise"
+      count: 1475                    # Number of samples
+      duration_hours: 1.64           # Total duration
+  
+  # Class balancing
+  balancing:
+    method: "oversample"             # oversample, undersample, class_weights
+    target_count: 1500               # Target samples per class
+    
+  # Class mapping for binary classification
+  binary_mapping:
+    enabled: false                   # Enable binary classification
+    positive_classes: [0, 1, 2, 3]  # Military vehicle classes
+    negative_classes: [4, 5, 6]     # Non-vehicle classes
+
+# Data Splits Configuration
+splits:
+  # Split strategy
+  strategy: "stratified"             # stratified, random, temporal
+  
+  # Split ratios
+  ratios:
+    train: 0.7                       # 70% for training
+    validation: 0.15                 # 15% for validation
+    test: 0.15                       # 15% for testing
+    
+  # Split configuration
+  config:
+    # Stratification
+    stratify_by: "class"             # Stratify by class
+    
+    # Random state
+    random_state: 42                 # Random seed for reproducible splits
+    
+    # Minimum samples per split
+    min_samples_per_class:
+      train: 50                      # Minimum training samples per class
+      validation: 10                 # Minimum validation samples per class
+      test: 10                       # Minimum test samples per class
+      
+  # Cross-validation
+  cross_validation:
+    enabled: false                   # Enable cross-validation
+    k_folds: 5                       # Number of folds
+    shuffle: true                    # Shuffle data before splitting
+
+# Audio Processing Configuration
+audio_processing:
+  # Input specifications
+  input:
+    sample_rate: 16000               # Target sample rate
+    channels: 1                      # Mono audio
+    duration: 10.0                   # Target duration in seconds
+    
+  # Resampling
+  resampling:
+    method: "librosa"                # librosa, torchaudio, scipy
+    quality: "high"                  # high, medium, low
+    
+  # Duration handling
+  duration_handling:
+    # For shorter clips
+    pad_mode: "constant"             # constant, reflect, edge
+    pad_value: 0.0                   # Padding value
+    
+    # For longer clips
+    crop_mode: "random"              # random, center, start, end
+    
+  # Normalization
+  normalization:
+    method: "peak"                   # peak, rms, lufs, none
+    target_level: 0.9                # Target normalization level
+    
+  # Quality filtering
+  quality_filtering:
+    enabled: true                    # Enable quality filtering
+    
+    # SNR filtering
+    snr_threshold: 10                # Minimum SNR (dB)
+    
+    # Clipping detection
+    clipping_threshold: 0.99         # Clipping detection threshold
+    
+    # Silence detection
+    silence_threshold: 0.01          # RMS threshold for silence
+
+# Feature Extraction Configuration
+feature_extraction:
+  # Spectrogram configuration
+  spectrogram:
+    # STFT parameters
+    n_fft: 1024                      # FFT size
+    hop_length: 160                  # Hop length (10ms at 16kHz)
+    win_length: 1024                 # Window length
+    window: "hann"                   # Window function
+    
+    # Mel filterbank
+    n_mels: 128                      # Number of mel bins
+    f_min: 50                        # Minimum frequency
+    f_max: 8000                      # Maximum frequency (Nyquist)
+    
+    # Power spectrum
+    power: 2.0                       # Power for magnitude spectrum
+    
+    # Mel scale
+    mel_scale: "htk"                 # htk, slaney
+    
+  # Log transformation
+  log_transform:
+    enabled: true                    # Apply log transformation
+    offset: 1e-6                     # Small offset to avoid log(0)
+    
+  # Delta features
+  delta_features:
+    enabled: false                   # Enable delta features
+    order: 2                         # Delta order (1=delta, 2=delta-delta)
+
+# Data Loading Configuration
+data_loading:
+  # DataLoader configuration
+  dataloader:
+    batch_size: 32                   # Batch size
+    shuffle: true                    # Shuffle training data
+    num_workers: 4                   # Number of worker processes
+    pin_memory: true                 # Pin memory for GPU transfer
+    drop_last: true                  # Drop last incomplete batch
+    
+  # Caching
+  caching:
+    enabled: true                    # Enable data caching
+    cache_dir: "data/cache/mad"      # Cache directory
+    cache_format: "hdf5"             # hdf5, zarr, pickle
+    
+    # Cache strategy
+    strategy: "features"             # raw, features, both
+    
+    # Memory caching
+    memory_cache:
+      enabled: true                  # Enable in-memory caching
+      max_size_gb: 4                 # Maximum memory cache size
+      
+  # Prefetching
+  prefetching:
+    enabled: true                    # Enable prefetching
+    buffer_size: 2                   # Prefetch buffer size
+
+# Data Validation Configuration
+validation:
+  # File validation
+  file_validation:
+    enabled: true                    # Enable file validation
+    
+    # Check file existence
+    check_existence: true            # Check if files exist
+    
+    # Check file format
+    check_format: true               # Validate audio format
+    
+    # Check file integrity
+    check_integrity: true            # Check file can be read
+    
+  # Audio validation
+  audio_validation:
+    enabled: true                    # Enable audio validation
+    
+    # Sample rate validation
+    sample_rate_tolerance: 0.01      # Sample rate tolerance (1%)
+    
+    # Duration validation
+    min_duration: 0.5                # Minimum duration (seconds)
+    max_duration: 60.0               # Maximum duration (seconds)
+    
+    # Dynamic range validation
+    min_dynamic_range: 20            # Minimum dynamic range (dB)
+    
+  # Label validation
+  label_validation:
+    enabled: true                    # Enable label validation
+    
+    # Check label format
+    check_format: true               # Validate label format
+    
+    # Check class consistency
+    check_classes: true              # Validate class labels
+
+# Metadata Configuration
+metadata:
+  # Metadata extraction
+  extraction:
+    enabled: true                    # Enable metadata extraction
+    
+    # Audio metadata
+    audio_metadata:
+      - "duration"                   # Audio duration
+      - "sample_rate"                # Sample rate
+      - "channels"                   # Number of channels
+      - "bit_depth"                  # Bit depth
+      - "format"                     # Audio format
+      
+    # Statistical metadata
+    statistical_metadata:
+      - "rms"                        # RMS level
+      - "peak"                       # Peak level
+      - "zero_crossing_rate"         # Zero crossing rate
+      - "spectral_centroid"          # Spectral centroid
+      - "spectral_bandwidth"         # Spectral bandwidth
+      
+  # Metadata storage
+  storage:
+    format: "json"                   # json, csv, parquet
+    file: "metadata.json"            # Metadata file name
+    
+# Data Augmentation Integration
+augmentation:
+  # Reference to augmentation config
+  config_file: "configs/data/augmentation.yaml"
+  
+  # Augmentation probability
+  probability: 0.8                   # Probability of applying augmentation
+  
+  # Augmentation during different phases
+  phases:
+    train: true                      # Apply during training
+    validation: false                # Don't apply during validation
+    test: false                      # Don't apply during testing
+
+# Export Configuration
+export:
+  # Export formats
+  formats:
+    # HDF5 export
+    hdf5:
+      enabled: true                  # Enable HDF5 export
+      compression: "gzip"            # Compression method
+      compression_level: 9           # Compression level
+      
+    # TFRecord export
+    tfrecord:
+      enabled: false                 # Enable TFRecord export
+      
+    # LMDB export
+    lmdb:
+      enabled: false                 # Enable LMDB export
+      map_size: "10GB"               # LMDB map size
+      
+  # Export configuration
+  config:
+    include_raw_audio: false         # Include raw audio in export
+    include_features: true           # Include extracted features
+    include_metadata: true           # Include metadata
+    
+# Quality Assurance
+quality_assurance:
+  # Data quality checks
+  checks:
+    # Duplicate detection
+    duplicates:
+      enabled: true                  # Enable duplicate detection
+      method: "hash"                 # hash, similarity
+      threshold: 0.95                # Similarity threshold
+      
+    # Outlier detection
+    outliers:
+      enabled: true                  # Enable outlier detection
+      method: "isolation_forest"     # isolation_forest, lof, zscore
+      contamination: 0.1             # Expected outlier fraction
+      
+    # Class imbalance check
+    class_imbalance:
+      enabled: true                  # Check class imbalance
+      max_ratio: 3.0                 # Maximum class ratio
+      
+  # Data profiling
+  profiling:
+    enabled: true                    # Enable data profiling
+    
+    # Statistical profiling
+    statistics:
+      - "mean"                       # Mean values
+      - "std"                        # Standard deviation
+      - "min"                        # Minimum values
+      - "max"                        # Maximum values
+      - "percentiles"                # Percentile values
+      
+    # Distribution analysis
+    distributions:
+      enabled: true                  # Analyze distributions
+      plot: false                    # Generate distribution plots
+      
+# Performance Optimization
+performance:
+  # Parallel processing
+  parallel:
+    enabled: true                    # Enable parallel processing
+    num_processes: 4                 # Number of processes
+    
+  # Memory optimization
+  memory:
+    # Lazy loading
+    lazy_loading: true               # Enable lazy loading
+    
+    # Memory mapping
+    memory_mapping: false            # Enable memory mapping
+    
+    # Garbage collection
+    gc_frequency: 1000               # GC frequency (samples)
+    
+  # Disk I/O optimization
+  disk_io:
+    # Buffering
+    buffer_size: 8192                # I/O buffer size
+    
+    # Asynchronous I/O
+    async_io: false                  # Enable async I/O
+    
+# Logging Configuration
+logging:
+  # Log level
+  level: "INFO"                      # DEBUG, INFO, WARNING, ERROR
+  
+  # Log configuration
+  config:
+    # Progress logging
+    progress: true                   # Log progress
+    progress_frequency: 100          # Log every N samples
+    
+    # Statistics logging
+    statistics: true                 # Log statistics
+    
+    # Error logging
+    errors: true                     # Log errors
+    
+  # Log output
+  output:
+    console: true                    # Log to console
+    file: "logs/mad_dataset.log"     # Log file path

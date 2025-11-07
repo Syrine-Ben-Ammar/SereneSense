@@ -1,0 +1,337 @@
+# Base Training Configuration
+# Common training settings for all SereneSense models
+# This serves as the foundation for model-specific training configs
+
+# Experiment Configuration
+experiment:
+  name: "core_base"            # Experiment name
+  description: "Base training configuration for SereneSense military vehicle detection"
+  tags: ["military", "audio", "transformer", "base"]
+  version: "1.0.0"
+  
+  # Reproducibility
+  seed: 42                            # Random seed for reproducibility
+  deterministic: true                 # Enable deterministic mode
+  benchmark: false                    # Enable CUDA benchmarking (set to true for production)
+
+# Training Configuration
+training:
+  # Training schedule
+  epochs: 100                         # Total number of training epochs
+  max_steps: null                     # Maximum training steps (overrides epochs if set)
+  
+  # Batch configuration
+  batch_size: 32                      # Training batch size
+  gradient_accumulation_steps: 1      # Gradient accumulation for larger effective batch size
+  effective_batch_size: 32            # batch_size * gradient_accumulation_steps
+  
+  # Validation configuration
+  validation:
+    batch_size: 64                    # Validation batch size
+    frequency: 1                      # Validate every N epochs
+    steps: null                       # Validate every N steps (if set)
+    
+  # Data loading
+  dataloader:
+    num_workers: 4                    # Number of data loading workers
+    pin_memory: true                  # Pin memory for faster GPU transfer
+    persistent_workers: true          # Keep workers alive between epochs
+    prefetch_factor: 2                # Prefetch factor for data loading
+    drop_last: true                   # Drop last incomplete batch
+
+# Optimizer Configuration
+optimizer:
+  type: "AdamW"                       # Optimizer type
+  lr: 1e-4                           # Base learning rate
+  weight_decay: 0.01                  # Weight decay (L2 regularization)
+  betas: [0.9, 0.999]                # Adam beta parameters
+  eps: 1e-8                          # Epsilon for numerical stability
+  amsgrad: false                     # Use AMSGrad variant
+  
+  # Per-parameter optimization
+  param_groups:
+    # Different learning rates for different components
+    backbone:
+      lr_multiplier: 0.1              # Lower LR for pre-trained backbone
+      weight_decay: 0.01
+    classifier:
+      lr_multiplier: 1.0              # Full LR for classifier
+      weight_decay: 0.01
+    positional_encoding:
+      weight_decay: 0.0               # No weight decay for positional encodings
+
+# Learning Rate Scheduler Configuration
+lr_scheduler:
+  type: "cosine_annealing_warm_restarts"  # Scheduler type
+  
+  # Cosine annealing parameters
+  T_0: 10                            # Initial restart period
+  T_mult: 2                          # Period multiplication factor
+  eta_min: 1e-6                      # Minimum learning rate
+  
+  # Warmup configuration
+  warmup:
+    enabled: true                     # Enable learning rate warmup
+    steps: 1000                       # Number of warmup steps
+    method: "linear"                  # linear, cosine, constant
+    start_lr: 1e-6                    # Starting learning rate for warmup
+    
+  # Step-based scheduling (alternative)
+  step:
+    enabled: false                    # Enable step-based scheduling
+    milestones: [30, 60, 90]         # Epochs to decay learning rate
+    gamma: 0.1                        # Decay factor
+
+# Loss Configuration
+loss:
+  # Primary loss function
+  primary:
+    type: "cross_entropy"             # cross_entropy, focal, label_smoothing
+    weight: 1.0                       # Loss weight
+    
+    # Label smoothing
+    label_smoothing: 0.1              # Label smoothing factor
+    
+    # Class weighting
+    class_weights: null               # Auto-computed from dataset if null
+    
+  # Auxiliary losses
+  auxiliary:
+    enabled: false                    # Enable auxiliary losses
+    losses: []                        # List of auxiliary loss configurations
+    
+  # Focal loss configuration (if type=focal)
+  focal:
+    alpha: 1.0                        # Focal loss alpha parameter
+    gamma: 2.0                        # Focal loss gamma parameter
+    
+# Regularization Configuration
+regularization:
+  # Dropout
+  dropout:
+    enabled: true                     # Enable dropout
+    rate: 0.1                         # Dropout rate
+    schedule: null                    # Dropout scheduling
+    
+  # Stochastic depth
+  stochastic_depth:
+    enabled: true                     # Enable stochastic depth
+    drop_path_rate: 0.1               # Drop path rate
+    
+  # Gradient clipping
+  gradient_clipping:
+    enabled: true                     # Enable gradient clipping
+    max_norm: 1.0                     # Maximum gradient norm
+    norm_type: 2.0                    # Norm type for clipping
+    
+  # Weight constraints
+  weight_constraints:
+    spectral_norm: false              # Apply spectral normalization
+    weight_standardization: false     # Apply weight standardization
+
+# Data Augmentation Configuration
+augmentation:
+  enabled: true                       # Enable data augmentation
+  
+  # Training augmentations
+  train:
+    # Audio augmentations
+    audio:
+      time_shift:
+        enabled: true                 # Enable time shifting
+        max_shift: 0.1                # Maximum shift ratio
+        
+      pitch_shift:
+        enabled: true                 # Enable pitch shifting
+        max_steps: 2                  # Maximum pitch shift steps
+        
+      noise_injection:
+        enabled: true                 # Enable noise injection
+        snr_range: [10, 50]           # Signal-to-noise ratio range
+        
+    # Spectrogram augmentations
+    spectrogram:
+      freq_mask:
+        enabled: true                 # Enable frequency masking
+        max_mask_pct: 0.15            # Maximum mask percentage
+        num_masks: 2                  # Number of masks
+        
+      time_mask:
+        enabled: true                 # Enable time masking
+        max_mask_pct: 0.10            # Maximum mask percentage
+        num_masks: 2                  # Number of masks
+        
+    # Mixup and CutMix
+    mixing:
+      mixup:
+        enabled: true                 # Enable mixup
+        alpha: 0.8                    # Mixup alpha parameter
+        prob: 0.5                     # Probability of applying mixup
+        
+      cutmix:
+        enabled: true                 # Enable cutmix
+        alpha: 1.0                    # Cutmix alpha parameter
+        prob: 0.5                     # Probability of applying cutmix
+        
+  # Validation augmentations (usually disabled)
+  val:
+    enabled: false                    # Disable validation augmentations
+    
+# Hardware Configuration
+hardware:
+  # Device configuration
+  device: "auto"                      # auto, cuda, cpu, mps
+  device_ids: null                    # Specific GPU IDs (null for all available)
+  
+  # Mixed precision training
+  mixed_precision:
+    enabled: true                     # Enable automatic mixed precision
+    opt_level: "O1"                   # AMP optimization level
+    loss_scale: "dynamic"             # dynamic, static, or float value
+    
+  # Distributed training
+  distributed:
+    enabled: false                    # Enable distributed training
+    strategy: "ddp"                   # ddp, dp, deepspeed
+    backend: "nccl"                   # nccl, gloo, mpi
+    find_unused_parameters: false     # Find unused parameters (for DDP)
+    
+  # Memory optimization
+  memory:
+    gradient_checkpointing: false     # Enable gradient checkpointing
+    empty_cache_frequency: 100        # Empty cache every N steps
+    max_split_size_mb: 128           # Maximum memory split size
+
+# Monitoring and Logging Configuration
+monitoring:
+  # Progress tracking
+  progress:
+    log_frequency: 100                # Log every N steps
+    eval_frequency: 500               # Evaluate every N steps
+    
+  # Metrics tracking
+  metrics:
+    # Classification metrics
+    classification:
+      - "accuracy"
+      - "top_k_accuracy"
+      - "precision"
+      - "recall"
+      - "f1_score"
+      - "balanced_accuracy"
+      
+    # Per-class metrics
+    per_class: true                   # Enable per-class metrics
+    
+    # Confusion matrix
+    confusion_matrix: true            # Enable confusion matrix logging
+    
+  # Experiment tracking
+  tracking:
+    # Weights & Biases
+    wandb:
+      enabled: false                  # Enable W&B tracking
+      project: "core"          # W&B project name
+      entity: null                    # W&B entity (username/team)
+      tags: []                        # Additional tags
+      notes: null                     # Experiment notes
+      
+    # MLflow
+    mlflow:
+      enabled: false                  # Enable MLflow tracking
+      experiment_name: "core"  # MLflow experiment name
+      tracking_uri: null              # MLflow tracking server URI
+      
+    # TensorBoard
+    tensorboard:
+      enabled: true                   # Enable TensorBoard logging
+      log_dir: "logs/tensorboard"     # TensorBoard log directory
+      log_graph: false                # Log model graph
+      
+# Checkpointing Configuration
+checkpointing:
+  # Save strategy
+  save_strategy: "epoch"              # epoch, steps, best
+  save_frequency: 1                   # Save every N epochs/steps
+  
+  # Best model saving
+  save_best: true                     # Save best model based on metric
+  monitor_metric: "val_accuracy"      # Metric to monitor for best model
+  monitor_mode: "max"                 # max (for accuracy), min (for loss)
+  
+  # Checkpoint management
+  save_top_k: 3                       # Save top-k best models
+  save_last: true                     # Always save last checkpoint
+  
+  # Directory configuration
+  checkpoint_dir: "models/checkpoints" # Checkpoint directory
+  filename_template: "{epoch:02d}-{val_accuracy:.3f}" # Filename template
+  
+  # Auto-resuming
+  auto_resume: true                   # Auto-resume from last checkpoint
+  resume_from: null                   # Specific checkpoint to resume from
+
+# Early Stopping Configuration
+early_stopping:
+  enabled: true                       # Enable early stopping
+  monitor: "val_accuracy"             # Metric to monitor
+  mode: "max"                         # max (for accuracy), min (for loss)
+  patience: 10                        # Number of epochs with no improvement
+  min_delta: 0.001                    # Minimum change to qualify as improvement
+  verbose: true                       # Verbose early stopping messages
+
+# Validation Configuration
+validation:
+  # Validation strategy
+  strategy: "epoch"                   # epoch, steps
+  frequency: 1                        # Validate every N epochs/steps
+  
+  # Validation metrics
+  metrics:
+    primary: "accuracy"               # Primary validation metric
+    secondary: ["f1_score", "precision", "recall"]
+    
+  # Test-time augmentation
+  tta:
+    enabled: false                    # Enable test-time augmentation
+    num_augmentations: 5              # Number of augmented versions
+    aggregation: "mean"               # mean, max, voting
+
+# Profiling Configuration (for debugging)
+profiling:
+  enabled: false                      # Enable profiling
+  profile_memory: false               # Profile memory usage
+  profile_steps: [100, 110]          # Steps to profile
+  output_dir: "logs/profiling"        # Profiling output directory
+
+# Environment Configuration
+environment:
+  # Python environment
+  python_path: null                   # Additional Python paths
+  
+  # CUDA configuration
+  cuda:
+    deterministic_algorithms: true    # Use deterministic CUDA algorithms
+    allow_tf32: true                  # Allow TF32 on Ampere GPUs
+    
+  # PyTorch configuration
+  pytorch:
+    num_threads: null                 # Number of PyTorch threads
+    num_interop_threads: null         # Number of interop threads
+
+# Model Configuration Reference
+model:
+  # Model architecture config will be loaded from model-specific files
+  architecture_config: null          # Path to architecture config
+  
+  # Pre-trained model
+  pretrained:
+    enabled: false                    # Load from pre-trained model
+    model_path: null                  # Path to pre-trained model
+    strict_loading: true              # Strict state dict loading
+    
+# Data Configuration Reference  
+data:
+  # Dataset configuration will be loaded from data-specific files
+  dataset_config: null                # Path to dataset config
+  preprocessing_config: null          # Path to preprocessing config

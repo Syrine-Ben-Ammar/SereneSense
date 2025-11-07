@@ -1,0 +1,83 @@
+# VGGSound Dataset Configuration
+# Large-scale audio-visual dataset with 10-second clips from YouTube
+# Dataset: https://www.robots.ox.ac.uk/~vgg/data/vggsound/
+
+# Dataset Information
+dataset:
+  name: "VGGSound"
+  full_name: "VGGSound: A Large-scale Audio-Visual Dataset"
+  version: "1.0"
+  description: "196k 10-second audio clips covering 309 classes sourced from YouTube"
+
+  # Citation information
+  citation: |
+    "VGGSound: A Large-scale Audio-Visual Dataset"
+    Chen et al., 2020
+    International Conference on Acoustics, Speech, and Signal Processing (ICASSP)
+
+  # License information
+  license:
+    type: "Creative Commons Attribution"
+    url: "https://creativecommons.org/licenses/by/4.0/"
+    commercial_use: true
+    attribution_required: true
+
+  # Dataset statistics
+  statistics:
+    total_samples: 200000
+    total_duration_hours: 545.0
+    classes: 309
+    sample_rate: 48000
+    bit_depth: 16
+    clip_duration_seconds: 10
+
+# Data Source Configuration
+source:
+  metadata:
+    csv_url: "https://www.robots.ox.ac.uk/~vgg/data/vggsound/meta_data/files.csv"
+    checksum: "sha256:5a5667730e4f0c07b4b5bbd508674b34fa6904ae78f7ed2c2fa6db14d339a9f6"
+    size_mb: 11
+  download:
+    method: "yt_dlp"
+    quality: "bestaudio/best"
+    audio_format: "wav"
+    sample_rate: 16000
+    max_concurrent: 4
+    retries: 3
+    request_delay: 1.0
+  local:
+    base_dir: "data/raw/vggsound"
+    metadata_dir: "data/metadata/vggsound"
+  verification:
+    verify_checksum: true
+    verify_downloads: true
+    spot_check_count: 10
+
+# Class configuration
+classes:
+  filter:
+    enabled: true
+    include:
+      - "helicopter"
+      - "gunshot"
+      - "tank"
+      - "airplane"
+      - "engine"
+      - "truck"
+      - "footsteps"
+      - "explosion"
+      - "siren"
+
+# Processing configuration
+processing:
+  target_sample_rate: 16000
+  target_channels: 1
+  duration_seconds: 10
+  normalize: true
+  trim_silence: true
+
+# Integration configuration
+integration:
+  enable_audio_only: true
+  mapping_file: "configs/mappings/vggsound_to_serenesense.yaml"
+  default_subset: "military_filtered"

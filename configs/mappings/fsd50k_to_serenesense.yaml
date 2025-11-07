@@ -1,0 +1,41 @@
+# Mapping from FSD50K labels to SereneSense canonical labels
+
+serenesense_labels:
+  helicopter:
+    synonyms:
+      - "helicopter"
+      - "helicopters"
+      - "rotorcraft"
+  fighter_aircraft:
+    synonyms:
+      - "airplane"
+      - "fighter jet"
+      - "jet engine"
+      - "aircraft"
+  military_vehicle:
+    synonyms:
+      - "armored vehicle"
+      - "tank"
+      - "tracked vehicle"
+      - "military vehicle"
+      - "engine idling"
+  truck:
+    synonyms:
+      - "truck"
+      - "lorry"
+      - "pickup truck"
+  footsteps:
+    synonyms:
+      - "footsteps"
+      - "walking"
+  speech:
+    synonyms:
+      - "speech"
+      - "radio"
+      - "communications"
+  background:
+    synonyms:
+      - "ambient noise"
+      - "crowd"
+      - "environmental noise"
+      - "wind"

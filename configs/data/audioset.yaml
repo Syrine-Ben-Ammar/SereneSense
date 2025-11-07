@@ -1,0 +1,471 @@
+# AudioSet Dataset Configuration
+# Large-scale dataset for pre-training and transfer learning
+# Dataset: https://research.google.com/audioset/
+
+# Dataset Information
+dataset:
+  name: "AudioSet"
+  full_name: "AudioSet: An ontology and human-labeled dataset for audio events"
+  version: "1.0"
+  description: "Large-scale dataset of manually-annotated audio events"
+  
+  # Citation information
+  citation: |
+    "AudioSet: An ontology and human-labeled dataset for audio events"
+    Jort F. Gemmeke et al., 2017
+    IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)
+    
+  # License information
+  license:
+    type: "CC BY 4.0"
+    url: "https://creativecommons.org/licenses/by/4.0/"
+    commercial_use: true
+    attribution_required: true
+    
+  # Dataset statistics
+  statistics:
+    total_samples: 2084320           # Total number of audio samples
+    total_duration_hours: 5800       # Total duration in hours
+    classes: 632                     # Number of sound classes
+    ontology_depth: 6                # Maximum ontology depth
+    avg_duration_seconds: 10         # Average clip duration
+    sample_rate: 16000               # Target sample rate (Hz)
+
+# Data Source Configuration
+source:
+  # YouTube source configuration
+  youtube:
+    # Download configuration
+    download:
+      quality: "bestaudio"           # Audio quality preference
+      format: "wav"                  # Output format
+      sample_rate: 16000             # Target sample rate
+      
+    # Rate limiting
+    rate_limiting:
+      max_concurrent: 4              # Maximum concurrent downloads
+      delay_between_requests: 1      # Delay between requests (seconds)
+      max_retries: 3                 # Maximum download retries
+      
+  # Alternative sources (preprocessed)
+  preprocessed:
+    # FSD50K subset (publicly available)
+    fsd50k:
+      enabled: true                  # Use FSD50K as AudioSet subset
+      url: "https://zenodo.org/record/4060432/files/FSD50K.zip"
+      size_mb: 57600                 # Compressed size
+      samples: 51197                 # Number of samples
+      
+    # VGGSound subset
+    vggsound:
+      enabled: false                 # Enable VGGSound subset
+      url: "https://www.robots.ox.ac.uk/~vgg/data/vggsound/"
+      samples: 200000                # Number of samples
+      
+  # Local data configuration
+  local:
+    base_dir: "data/raw/audioset"    # Base directory for raw data
+    processed_dir: "data/processed/audioset"  # Processed data directory
+    
+# Subset Configuration
+subsets:
+  # Training subset
+  train:
+    name: "balanced_train"           # Subset name
+    csv_url: "http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/balanced_train_segments.csv"
+    samples: 22160                   # Number of samples
+    description: "Balanced training set"
+    
+  # Evaluation subset
+  eval:
+    name: "eval"                     # Subset name
+    csv_url: "http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/eval_segments.csv"
+    samples: 20371                   # Number of samples
+    description: "Evaluation set"
+    
+  # Unbalanced training subset (large)
+  unbalanced_train:
+    name: "unbalanced_train"         # Subset name
+    csv_url: "http://storage.googleapis.com/us_audioset/youtube_corpus/v1/csv/unbalanced_train_segments.csv"
+    samples: 2041789                 # Number of samples
+    description: "Unbalanced training set (full)"
+    enabled: false                   # Disabled by default (very large)
+
+# Class Configuration
+classes:
+  # Ontology configuration
+  ontology:
+    url: "https://raw.githubusercontent.com/audioset/ontology/master/ontology.json"
+    hierarchy_levels: 6              # Maximum hierarchy levels
+    
+  # Class filtering for military domain
+  military_relevant:
+    enabled: true                    # Filter for military-relevant classes
+    
+    # Relevant class IDs
+    class_ids:
+      # Vehicle sounds
+      - "/m/07yv9"                   # Vehicle
+      - "/m/0k4j"                    # Car
+      - "/m/012f08"                  # Truck
+      - "/m/04_sv"                   # Motorcycle
+      - "/m/09t49"                   # Boat, Water vehicle
+      
+      # Aircraft sounds
+      - "/m/0cmf2"                   # Airplane
+      - "/m/09ct_"                   # Helicopter
+      - "/m/01bjv"                   # Bus
+      
+      # Mechanical sounds
+      - "/m/01h8n0"                  # Engine
+      - "/m/07qv_x_"                 # Engine starting
+      - "/m/07rgt08"                 # Engine knocking
+      
+      # Weapon and military sounds
+      - "/m/02p0tk1"                 # Gunshot, gunfire
+      - "/m/0_q8"                    # Explosion
+      - "/m/03kmc9"                  # Burst, pop
+      
+      # Communication sounds
+      - "/m/09x0r"                   # Speech
+      - "/m/05zc1"                   # Radio
+      - "/m/08p9q4"                  # Walkie-talkie
+      
+      # Movement sounds
+      - "/m/02fs_r"                  # Footsteps
+      - "/m/07pbtc8"                 # Marching
+      
+      # Background sounds
+      - "/m/096m7z"                  # Wind noise (microphone)
+      - "/m/03qtwd"                  # White noise
+      - "/m/07rkbfh"                 # Background noise
+      
+  # Class mapping
+  mapping:
+    # Map to simplified military classes
+    simplified_mapping:
+      enabled: true                  # Enable simplified mapping
+      
+      # Target classes (matching MAD dataset)
+      target_classes:
+        0: # Helicopter
+          source_ids: ["/m/09ct_"]
+          
+        1: # Aircraft
+          source_ids: ["/m/0cmf2"]
+          
+        2: # Military Vehicle
+          source_ids: ["/m/07yv9", "/m/012f08", "/m/01bjv"]
+          
+        3: # Truck
+          source_ids: ["/m/012f08"]
+          
+        4: # Speech/Communication
+          source_ids: ["/m/09x0r", "/m/05zc1", "/m/08p9q4"]
+          
+        5: # Background/Environment
+          source_ids: ["/m/096m7z", "/m/03qtwd", "/m/07rkbfh"]
+
+# Data Processing Configuration
+processing:
+  # Download configuration
+  download:
+    # YouTube download settings
+    youtube_dl:
+      format: "bestaudio/best"       # Best available audio
+      extract_flat: false            # Don't extract playlist info only
+      writeinfojson: true            # Write metadata JSON
+      writethumbnail: false          # Don't download thumbnails
+      
+    # Segment extraction
+    segment_extraction:
+      enabled: true                  # Extract 10-second segments
+      start_offset: 0                # Start offset (seconds)
+      duration: 10                   # Segment duration (seconds)
+      
+    # Error handling
+    error_handling:
+      skip_unavailable: true         # Skip unavailable videos
+      max_failures: 100              # Maximum failures before stopping
+      
+  # Audio processing
+  audio_processing:
+    # Resampling
+    resampling:
+      target_sample_rate: 16000      # Target sample rate
+      method: "librosa"              # Resampling method
+      
+    # Normalization
+    normalization:
+      method: "peak"                 # peak, rms, lufs
+      target_level: 0.9              # Target level
+      
+    # Quality filtering
+    quality_filtering:
+      enabled: true                  # Enable quality filtering
+      min_snr: 15                    # Minimum SNR (dB)
+      max_clipping: 0.01             # Maximum clipping ratio
+      
+  # Feature extraction
+  feature_extraction:
+    # Extract features during processing
+    extract_features: true           # Extract features immediately
+    
+    # Feature types
+    features:
+      mel_spectrogram: true          # Mel spectrograms
+      mfcc: false                    # MFCC features
+      chroma: false                  # Chroma features
+      spectral_contrast: false       # Spectral contrast
+
+# Data Splits Configuration
+splits:
+  # Use predefined AudioSet splits
+  use_predefined: true               # Use original train/eval splits
+  
+  # Custom splits (if not using predefined)
+  custom:
+    enabled: false                   # Enable custom splits
+    strategy: "stratified"           # Stratified splitting
+    
+    ratios:
+      train: 0.8                     # 80% training
+      validation: 0.1                # 10% validation
+      test: 0.1                      # 10% testing
+      
+    random_state: 42                 # Random seed
+    
+  # Cross-validation
+  cross_validation:
+    enabled: false                   # Enable cross-validation
+    k_folds: 5                       # Number of folds
+    stratified: true                 # Stratified CV
+
+# Sampling Configuration
+sampling:
+  # Dataset sampling strategy
+  strategy: "balanced"               # balanced, weighted, random
+  
+  # Balanced sampling
+  balanced:
+    samples_per_class: 1000          # Maximum samples per class
+    min_samples_per_class: 100       # Minimum samples per class
+    
+  # Weighted sampling
+  weighted:
+    # Weight by class frequency
+    weight_by_frequency: true        # Weight by inverse frequency
+    
+    # Custom weights
+    custom_weights: null             # Custom class weights
+    
+  # Military domain focus
+  military_focus:
+    enabled: true                    # Focus on military-relevant classes
+    boost_factor: 2.0                # Boost factor for military classes
+
+# Data Augmentation Configuration
+augmentation:
+  # Reference augmentation config
+  config_file: "configs/data/augmentation.yaml"
+  
+  # AudioSet-specific augmentation
+  audioset_specific:
+    # Background mixing
+    background_mixing:
+      enabled: true                  # Mix with background sounds
+      mixing_ratio: 0.3              # Background mixing ratio
+      
+    # Multi-label handling
+    multi_label:
+      enabled: true                  # Handle multi-label samples
+      label_mixing: false            # Mix labels during augmentation
+      
+  # Augmentation probability
+  probability: 0.6                   # Lower probability for pre-training
+
+# Storage Configuration
+storage:
+  # Storage format
+  format: "hdf5"                     # hdf5, zarr, tfrecord
+  
+  # HDF5 configuration
+  hdf5:
+    compression: "gzip"              # Compression method
+    compression_level: 6             # Compression level (balance of speed/size)
+    chunk_size: 1000                 # Chunk size for efficient access
+    
+  # Directory structure
+  structure:
+    raw_audio: "raw_audio"           # Raw audio files
+    features: "features"             # Extracted features
+    metadata: "metadata"             # Metadata files
+    
+  # Caching
+  caching:
+    enabled: true                    # Enable caching
+    cache_dir: "data/cache/audioset" # Cache directory
+    max_cache_size: "20GB"           # Maximum cache size
+
+# Quality Control Configuration
+quality_control:
+  # Data validation
+  validation:
+    # Audio validation
+    audio:
+      check_duration: true           # Check audio duration
+      check_sample_rate: true        # Check sample rate
+      check_channels: true           # Check number of channels
+      
+    # Label validation
+    labels:
+      check_format: true             # Check label format
+      check_ontology: true           # Validate against ontology
+      
+  # Duplicate detection
+  duplicates:
+    enabled: true                    # Enable duplicate detection
+    method: "audio_fingerprint"      # audio_fingerprint, hash, similarity
+    threshold: 0.9                   # Similarity threshold
+    
+  # Outlier detection
+  outliers:
+    enabled: true                    # Enable outlier detection
+    method: "isolation_forest"       # Outlier detection method
+    contamination: 0.05              # Expected outlier fraction
+
+# Transfer Learning Configuration
+transfer_learning:
+  # Pre-training strategy
+  pretraining:
+    # Self-supervised objectives
+    self_supervised:
+      enabled: true                  # Enable self-supervised learning
+      objectives:
+        - "masked_reconstruction"     # Masked audio reconstruction
+        - "contrastive_learning"      # Contrastive learning
+        
+    # Multi-task learning
+    multi_task:
+      enabled: false                 # Enable multi-task learning
+      tasks:
+        - "classification"            # Audio classification
+        - "tagging"                   # Audio tagging
+        
+  # Domain adaptation
+  domain_adaptation:
+    enabled: true                    # Enable domain adaptation
+    target_domain: "military"        # Target domain
+    adaptation_method: "gradual"     # gradual, adversarial, coral
+    
+# Performance Configuration
+performance:
+  # Parallel processing
+  parallel:
+    download_workers: 4              # Parallel download workers
+    processing_workers: 8            # Parallel processing workers
+    
+  # Memory management
+  memory:
+    max_memory_gb: 16                # Maximum memory usage
+    lazy_loading: true               # Enable lazy loading
+    
+  # Disk I/O optimization
+  disk_io:
+    async_io: true                   # Enable asynchronous I/O
+    buffer_size: 16384               # I/O buffer size
+    
+# Monitoring Configuration
+monitoring:
+  # Progress tracking
+  progress:
+    enabled: true                    # Enable progress tracking
+    update_frequency: 100            # Update every N samples
+    
+  # Statistics
+  statistics:
+    enabled: true                    # Enable statistics collection
+    
+    # Statistics to collect
+    collect:
+      - "download_success_rate"      # Download success rate
+      - "processing_time"            # Processing time per sample
+      - "storage_usage"              # Storage usage
+      - "class_distribution"         # Class distribution
+      
+  # Logging
+  logging:
+    level: "INFO"                    # Logging level
+    file: "logs/audioset.log"        # Log file path
+    
+# Integration Configuration
+integration:
+  # MAD dataset integration
+  mad_integration:
+    enabled: true                    # Enable MAD integration
+    
+    # Joint training
+    joint_training:
+      enabled: true                  # Enable joint training
+      mad_weight: 1.0                # Weight for MAD samples
+      audioset_weight: 0.5           # Weight for AudioSet samples
+      
+    # Class alignment
+    class_alignment:
+      enabled: true                  # Align classes with MAD
+      mapping_file: "mad_audioset_mapping.json"
+      
+  # Other datasets
+  other_datasets:
+    # FSD50K integration
+    fsd50k:
+      enabled: false                 # Enable FSD50K integration
+      
+    # VGGSound integration
+    vggsound:
+      enabled: false                 # Enable VGGSound integration
+
+# Export Configuration
+export:
+  # Export formats
+  formats:
+    pytorch: true                    # PyTorch dataset format
+    tensorflow: false                # TensorFlow dataset format
+    huggingface: false               # Hugging Face dataset format
+    
+  # Export configuration
+  config:
+    # Data to include
+    include_raw_audio: false         # Include raw audio (large)
+    include_features: true           # Include extracted features
+    include_metadata: true           # Include metadata
+    
+    # Compression
+    compression: true                # Enable compression
+    compression_level: 6             # Compression level
+    
+# Legal and Ethical Configuration
+legal:
+  # Copyright compliance
+  copyright:
+    respect_copyright: true          # Respect copyright restrictions
+    fair_use_only: true              # Only use fair use content
+    
+  # Content filtering
+  content_filtering:
+    enabled: true                    # Enable content filtering
+    
+    # Filter inappropriate content
+    inappropriate_content:
+      enabled: true                  # Filter inappropriate content
+      categories:
+        - "violence"                 # Violent content
+        - "hate_speech"              # Hate speech
+        - "adult_content"            # Adult content
+        
+  # Privacy
+  privacy:
+    # Personal information
+    personal_info:
+      remove_metadata: true          # Remove personal metadata
+      anonymize_content: true        # Anonymize personal content

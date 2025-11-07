@@ -1,0 +1,305 @@
+# Audio Spectrogram Transformer (AST) Configuration
+# Based on AST paper: https://arxiv.org/abs/2104.01778
+# Optimized for military vehicle sound detection
+
+model:
+  name: "AST"
+  type: "audio_spectrogram_transformer"
+  version: "1.0"
+  
+  # Architecture Configuration
+  architecture:
+    # Input Configuration
+    input:
+      # Spectrogram dimensions
+      input_tdim: 1024                  # Time dimension (number of time frames)
+      input_fdim: 128                   # Frequency dimension (number of mel bins)
+      
+      # Patch configuration
+      patch_size: [16, 16]              # [time_patch, freq_patch]
+      stride: [10, 10]                  # [time_stride, freq_stride] for overlapping patches
+      
+    # Vision Transformer Configuration
+    transformer:
+      embed_dim: 768                    # Embedding dimension
+      depth: 12                         # Number of transformer layers
+      num_heads: 12                     # Number of attention heads
+      mlp_ratio: 4.0                    # MLP hidden dimension ratio
+      
+      # Normalization and activation
+      norm_layer: "LayerNorm"
+      norm_eps: 1e-6
+      act_layer: "GELU"
+      
+      # Regularization
+      dropout: 0.0                      # General dropout rate
+      attention_dropout: 0.0            # Attention dropout rate
+      drop_path: 0.1                    # Stochastic depth rate
+      
+    # Positional Encoding
+    positional_encoding:
+      type: "learnable"                 # learnable, sinusoidal, relative
+      
+      # 2D positional encoding for time-frequency
+      time_encoding: true               # Enable time positional encoding
+      freq_encoding: true               # Enable frequency positional encoding
+      
+      # Interpolation for different input sizes
+      interpolate_pos_encoding: true    # Interpolate when input size differs
+      
+    # Classification Head
+    classifier:
+      num_classes: 7                    # MAD dataset classes
+      hidden_dim: 768                   # Hidden dimension before final layer
+      dropout: 0.5                      # Classifier dropout
+      pooling: "cls_token"              # cls_token, mean, attention
+      
+  # Audio Processing Configuration
+  audio:
+    # Input specifications
+    sample_rate: 16000                  # Target sample rate
+    duration: 10.24                     # Audio clip duration (seconds, optimized for patches)
+    
+    # Spectrogram configuration
+    spectrogram:
+      # STFT parameters
+      n_fft: 1024                       # FFT window size
+      hop_length: 160                   # Hop length (10ms at 16kHz)
+      win_length: 1024                  # Window length
+      window: "hann"                    # Window function
+      
+      # Mel filterbank
+      n_mels: 128                       # Number of mel bins
+      f_min: 50                         # Minimum frequency
+      f_max: 8000                       # Maximum frequency
+      power: 2.0                        # Power for magnitude spectrogram
+      
+      # Mel scale
+      mel_scale: "htk"                  # htk, slaney
+      
+    # Preprocessing
+    preprocessing:
+      # Normalization strategy
+      normalization:
+        type: "imagenet"                # imagenet, instance, batch, none
+        mean: [0.485, 0.456, 0.406]     # ImageNet mean (adapted for audio)
+        std: [0.229, 0.224, 0.225]      # ImageNet std (adapted for audio)
+        
+      # Log transformation
+      log_mel: true                     # Apply log transformation
+      log_offset: 1e-6                  # Small offset for log
+      
+      # Dynamic range compression
+      compression:
+        enabled: true                   # Enable dynamic range compression
+        method: "log"                   # log, power_law, mu_law
+        
+  # Pre-training Configuration (ImageNet and AudioSet)
+  pretraining:
+    # ImageNet initialization
+    imagenet_pretrained: true          # Use ImageNet pre-trained weights
+    pretrained_model: "deit_base_distilled_patch16_224"
+    
+    # AudioSet pre-training
+    audioset_pretrained: false         # Use AudioSet pre-trained weights
+    audioset_model_path: null          # Path to AudioSet pre-trained model
+    
+    # Fine-tuning from pre-trained
+    finetune_from_pretrained: true     # Fine-tune from pre-trained model
+    freeze_base: false                 # Freeze base layers during fine-tuning
+    
+  # Transfer Learning Configuration
+  transfer_learning:
+    # Domain adaptation
+    domain_adaptation:
+      enabled: false                   # Enable domain adaptation
+      method: "dann"                   # dann, coral, mmd
+      adaptation_weight: 0.1           # Domain adaptation loss weight
+      
+    # Progressive resizing
+    progressive_resizing:
+      enabled: false                   # Enable progressive resizing
+      start_size: [64, 64]             # Starting patch size
+      end_size: [16, 16]               # Final patch size
+      schedule: [10, 20, 30]           # Epochs to change size
+
+# Training Configuration
+training:
+  # Optimizer
+  optimizer:
+    type: "AdamW"
+    lr: 5e-5                          # Base learning rate (smaller for pre-trained)
+    weight_decay: 1e-4                # Weight decay
+    betas: [0.9, 0.999]              # Adam betas
+    eps: 1e-8                        # Epsilon
+    
+  # Learning rate scheduler
+  lr_scheduler:
+    type: "cosine_annealing"
+    T_max: 100                        # Maximum epochs
+    eta_min: 1e-6                     # Minimum learning rate
+    
+    # Warmup configuration
+    warmup:
+      enabled: true                   # Enable warmup
+      steps: 500                      # Warmup steps
+      start_lr: 1e-6                  # Starting learning rate
+      
+  # Loss configuration
+  loss:
+    type: "cross_entropy"             # cross_entropy, focal, label_smoothing
+    label_smoothing: 0.1              # Label smoothing parameter
+    
+    # Class balancing
+    class_weights: null               # Computed automatically from data
+    focal_loss:
+      alpha: 1.0                      # Focal loss alpha
+      gamma: 2.0                      # Focal loss gamma
+      
+  # Regularization techniques
+  regularization:
+    # Data augmentation
+    augmentation:
+      enabled: true                   # Enable data augmentation
+      
+      # Mixup and Cutmix
+      mixup:
+        enabled: true                 # Enable mixup
+        alpha: 0.8                    # Mixup alpha
+        prob: 0.5                     # Probability of applying mixup
+        
+      cutmix:
+        enabled: true                 # Enable cutmix  
+        alpha: 1.0                    # Cutmix alpha
+        prob: 0.5                     # Probability of applying cutmix
+        
+    # Model regularization
+    weight_decay_exemptions: ["pos_embed", "cls_token"]  # No weight decay on these
+    
+# Inference Configuration
+inference:
+  # Multi-scale testing
+  multi_scale:
+    enabled: false                    # Enable multi-scale inference
+    scales: [0.8, 1.0, 1.2]          # Scale factors
+    
+  # Test time augmentation
+  tta:
+    enabled: false                    # Enable test time augmentation
+    num_augmentations: 5              # Number of augmented versions
+    aggregation: "mean"               # mean, max, voting
+    
+  # Attention visualization
+  attention_maps:
+    enabled: false                    # Enable attention map extraction
+    layers: [-1]                      # Layers to extract attention from
+    heads: "all"                      # all, mean, specific indices
+    
+  # Confidence calibration
+  calibration:
+    enabled: false                    # Enable temperature scaling
+    temperature: 1.0                  # Temperature parameter
+    
+# Hardware Configuration  
+hardware:
+  # Device configuration
+  device: "auto"                      # auto, cuda, cpu, mps
+  mixed_precision: true               # Enable automatic mixed precision
+  
+  # Distributed training
+  distributed:
+    enabled: false                    # Enable distributed training
+    backend: "nccl"                   # nccl, gloo, mpi
+    init_method: "env://"             # Initialization method
+    
+  # Memory optimization
+  memory:
+    gradient_checkpointing: false     # Enable gradient checkpointing
+    max_split_size_mb: 128           # Maximum split size for memory
+    empty_cache_steps: 100           # Empty cache every N steps
+    
+# Monitoring Configuration
+monitoring:
+  # Experiment tracking
+  wandb:
+    enabled: false                    # Enable Weights & Biases
+    project: "core-ast"        # Project name
+    tags: ["ast", "military", "transformer"]
+    
+  mlflow:
+    enabled: false                    # Enable MLflow
+    experiment_name: "AST_military"
+    
+  # Visualization
+  visualization:
+    log_spectrograms: false           # Log sample spectrograms
+    log_attention_maps: false         # Log attention maps
+    log_frequency: 100                # Log every N steps
+    
+  # Metrics
+  metrics:
+    classification:
+      - "accuracy"
+      - "top_k_accuracy"              # k=3 for top-3 accuracy
+      - "precision"
+      - "recall" 
+      - "f1_score"
+      - "balanced_accuracy"
+    
+    per_class:
+      enabled: true                   # Enable per-class metrics
+      
+# Model Checkpointing
+checkpointing:
+  # Checkpoint saving
+  save_strategy: "epoch"              # epoch, steps
+  save_steps: 500                     # Save every N steps (if strategy=steps)
+  save_total_limit: 5                 # Maximum number of checkpoints
+  
+  # Best model saving
+  load_best_model_at_end: true        # Load best model at training end
+  metric_for_best_model: "eval_accuracy"
+  greater_is_better: true             # Higher accuracy is better
+  
+  # Model directory
+  output_dir: "models/checkpoints/ast"
+  
+# Data Configuration
+data:
+  # Data loading
+  dataloader:
+    batch_size: 16                    # Training batch size
+    num_workers: 4                    # Number of data loading workers
+    pin_memory: true                  # Pin memory for faster GPU transfer
+    drop_last: true                   # Drop last incomplete batch
+    
+  # Validation configuration
+  validation:
+    batch_size: 32                    # Validation batch size
+    shuffle: false                    # Don't shuffle validation data
+    
+# Export and Deployment
+deployment:
+  # Model export
+  export:
+    format: ["pytorch", "onnx"]       # Export formats
+    optimize_for_mobile: false        # Optimize for mobile deployment
+    
+  # Quantization
+  quantization:
+    enabled: false                    # Enable post-training quantization
+    method: "dynamic"                 # dynamic, static
+    backend: "fbgemm"                 # Backend for quantization
+    
+  # Edge deployment
+  edge:
+    target_device: "jetson"           # jetson, raspberry_pi, edge_tpu
+    optimization_level: "O1"          # O1, O2, O3 optimization levels
+    max_workspace_size: "1GB"        # Maximum workspace for optimization
+    
+# Model Ensemble Configuration
+ensemble:
+  enabled: false                      # Enable model ensemble
+  models: []                          # List of model paths
+  weights: []                         # Model weights for ensemble
+  strategy: "average"                 # average, weighted_average, voting

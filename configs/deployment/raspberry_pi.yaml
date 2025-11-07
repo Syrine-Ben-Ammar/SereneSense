@@ -1,0 +1,540 @@
+# Raspberry Pi Deployment Configuration
+# Optimized deployment settings for Raspberry Pi 5 with AI HAT+
+# Focuses on CPU optimization, power efficiency, and resource constraints
+
+# Device Configuration
+device:
+  name: "raspberry_pi"
+  platform: "aarch64"
+  
+  # Supported Raspberry Pi models
+  models:
+    raspberry_pi_5:
+      cpu: "Cortex-A76"              # ARM Cortex-A76 quad-core
+      cpu_cores: 4
+      cpu_freq_base: 2.4             # Base frequency (GHz)
+      cpu_freq_max: 2.4              # Max frequency (GHz)
+      memory_gb: 8                   # 8GB RAM model
+      gpu: "VideoCore VII"           # Integrated GPU
+      
+      # AI HAT+ specifications
+      ai_hat_plus:
+        enabled: true                # Enable AI HAT+ support
+        chip: "Hailo-8L"            # Hailo-8L AI processor
+        tops: 13                     # 13 TOPS INT8 performance
+        power_consumption: 2.5       # 2.5W power consumption
+        memory_mb: 32               # 32MB on-chip memory
+        
+    raspberry_pi_4:
+      cpu: "Cortex-A72"              # ARM Cortex-A72 quad-core
+      cpu_cores: 4
+      cpu_freq_base: 1.5             # Base frequency (GHz)
+      cpu_freq_max: 1.8              # Max frequency (GHz)
+      memory_gb: 8                   # 8GB RAM model
+      gpu: "VideoCore VI"            # Integrated GPU
+      
+      # No AI HAT+ support
+      ai_hat_plus:
+        enabled: false
+
+# Model Optimization Configuration
+optimization:
+  # CPU optimization (primary for RPi)
+  cpu:
+    # Quantization
+    quantization:
+      enabled: true                  # Enable quantization
+      method: "dynamic"              # dynamic, static
+      backend: "qnnpack"             # Optimized for ARM
+      
+      # Precision settings
+      precision:
+        weights: 8                   # 8-bit weights
+        activations: 8               # 8-bit activations
+        
+    # ONNX Runtime optimization
+    onnxruntime:
+      enabled: true                  # Enable ONNX Runtime
+      execution_providers: ["CPUExecutionProvider"]
+      
+      # CPU-specific settings
+      cpu_settings:
+        intra_op_num_threads: 4      # Use all CPU cores
+        inter_op_num_threads: 1      # Single inter-op thread
+        execution_mode: "sequential" # Sequential execution
+        
+      # Graph optimizations
+      graph_optimization_level: "all" # all, basic, extended
+      
+  # AI HAT+ optimization (if available)
+  ai_hat:
+    enabled: true                    # Enable AI HAT+ optimization
+    
+    # Hailo optimization
+    hailo:
+      # Model compilation for Hailo
+      compilation:
+        target_platform: "hailo8l"   # Hailo-8L target
+        optimization_level: "performance" # performance, size
+        
+      # Quantization for Hailo
+      quantization:
+        precision: "int8"            # INT8 quantization
+        calibration_dataset_size: 256 # Calibration samples
+        
+      # Memory optimization
+      memory:
+        batch_size: 1                # Single sample processing
+        buffer_optimization: true    # Optimize buffers
+        
+  # Model compression
+  compression:
+    # Pruning
+    pruning:
+      enabled: true                  # Enable aggressive pruning
+      sparsity: 0.5                  # 50% sparsity for RPi
+      method: "magnitude"            # Magnitude-based pruning
+      
+    # Knowledge distillation
+    distillation:
+      enabled: true                  # Use smaller distilled model
+      teacher_model: null            # Path to teacher model
+      
+    # Architecture modifications
+    architecture:
+      # Channel reduction
+      channel_reduction: 0.75        # Reduce channels by 25%
+      
+      # Depth reduction
+      depth_reduction: 0.85          # Reduce depth by 15%
+
+# Runtime Configuration
+runtime:
+  # CPU settings
+  cpu:
+    # Thread configuration
+    num_threads: 4                   # Use all CPU cores
+    thread_affinity: [0, 1, 2, 3]   # Pin to specific cores
+    
+    # CPU governor
+    governor: "performance"          # performance, ondemand, powersave
+    
+  # Memory management
+  memory:
+    # Memory limits
+    max_memory_mb: 6144              # Reserve 2GB for system
+    swap_enabled: false              # Disable swap for performance
+    
+    # Memory optimization
+    memory_pool: true                # Use memory pooling
+    garbage_collection: "aggressive" # Aggressive GC
+    
+  # Inference settings
+  inference:
+    batch_size: 1                    # Single sample inference
+    num_workers: 1                   # Single worker process
+    
+    # AI HAT+ settings (if available)
+    ai_hat:
+      device_id: 0                   # AI HAT+ device ID
+      stream_buffer_size: 4          # Stream buffer size
+
+# Power Management Configuration
+power_management:
+  # Power optimization
+  optimization:
+    # CPU power management
+    cpu:
+      scaling_governor: "ondemand"   # Power-aware scaling
+      min_freq: 600                  # Minimum frequency (MHz)
+      max_freq: 2400                 # Maximum frequency (MHz)
+      
+    # GPU power management
+    gpu:
+      memory_split: 128              # GPU memory split (MB)
+      
+  # Thermal management
+  thermal:
+    # Temperature monitoring
+    monitoring:
+      enabled: true                  # Enable thermal monitoring
+      interval: 5                    # Check every 5 seconds
+      
+    # Temperature thresholds
+    thresholds:
+      warning: 75                    # Warning temperature (°C)
+      throttle: 80                   # Throttling temperature (°C)
+      shutdown: 85                   # Emergency shutdown (°C)
+      
+    # Cooling strategy
+    cooling:
+      fan_enabled: true              # Enable fan (if available)
+      fan_speed_curve:               # Temperature vs fan speed
+        - [60, 30]                   # 60°C: 30% fan speed
+        - [70, 60]                   # 70°C: 60% fan speed
+        - [80, 100]                  # 80°C: 100% fan speed
+        
+  # Battery management (for portable setups)
+  battery:
+    # Power profiles
+    profiles:
+      high_performance:
+        cpu_freq: 2400               # Max CPU frequency
+        ai_hat_enabled: true         # AI HAT+ enabled
+        estimated_runtime_h: 4       # 4 hours runtime
+        
+      balanced:
+        cpu_freq: 1800               # Balanced CPU frequency
+        ai_hat_enabled: true         # AI HAT+ enabled
+        estimated_runtime_h: 8       # 8 hours runtime
+        
+      power_save:
+        cpu_freq: 1200               # Low CPU frequency
+        ai_hat_enabled: false        # AI HAT+ disabled
+        estimated_runtime_h: 16      # 16 hours runtime
+
+# Audio Pipeline Configuration
+audio_pipeline:
+  # Input configuration
+  input:
+    # Audio interface
+    interface:
+      type: "alsa"                   # ALSA audio system
+      device: "hw:1,0"               # USB audio device
+      
+    # Microphone configuration
+    microphone:
+      channels: 2                    # Stereo input
+      sample_rate: 16000             # 16kHz sample rate
+      format: "S16_LE"               # 16-bit little-endian
+      period_size: 1024              # Period size
+      buffer_size: 4096              # Buffer size
+      
+  # Processing pipeline
+  processing:
+    # Buffer management
+    buffer:
+      input_buffer_size: 8192        # Input buffer size
+      processing_buffer_size: 4096   # Processing buffer size
+      
+    # Audio preprocessing
+    preprocessing:
+      # Noise reduction
+      noise_reduction:
+        enabled: true                # Enable noise reduction
+        method: "spectral_subtraction" # Noise reduction method
+        
+      # Automatic gain control
+      agc:
+        enabled: true                # Enable AGC
+        target_level: 0.7            # Target RMS level
+        
+  # Real-time constraints
+  realtime:
+    # Latency targets
+    latency:
+      target_ms: 20                  # Target latency
+      max_ms: 50                     # Maximum acceptable latency
+      
+    # Processing parameters
+    processing:
+      chunk_size: 1024               # Processing chunk size
+      overlap: 0.25                  # 25% overlap
+
+# Software Stack Configuration
+software_stack:
+  # Operating system
+  os:
+    distribution: "raspberry_pi_os"  # Raspberry Pi OS
+    version: "bookworm"              # Debian Bookworm base
+    architecture: "arm64"            # 64-bit ARM
+    
+  # Python environment
+  python:
+    version: "3.11"                  # Python version
+    virtual_env: true                # Use virtual environment
+    
+    # Package optimizations
+    packages:
+      # Optimized packages for ARM
+      pytorch_mobile: true           # Use PyTorch Mobile
+      onnxruntime_arm: true          # ARM-optimized ONNX Runtime
+      
+  # System libraries
+  system_libraries:
+    # Audio libraries
+    - "libasound2-dev"               # ALSA development
+    - "libportaudio2"                # PortAudio
+    - "libsndfile1"                  # Sound file library
+    
+    # Math libraries
+    - "libopenblas-dev"              # Optimized BLAS
+    - "liblapack-dev"                # LAPACK
+    - "libfftw3-dev"                 # FFTW for FFT
+    
+    # System utilities
+    - "htop"                         # System monitoring
+    - "stress-ng"                    # Stress testing
+
+# Performance Optimization
+performance:
+  # CPU optimizations
+  cpu_optimizations:
+    # Compiler flags
+    compiler_flags:
+      - "-O3"                        # Maximum optimization
+      - "-march=armv8-a"            # ARM v8-A architecture
+      - "-mcpu=cortex-a76"          # Cortex-A76 specific
+      - "-mfpu=neon-fp-armv8"       # NEON SIMD
+      
+    # Runtime optimizations
+    runtime:
+      affinity_enabled: true         # CPU affinity
+      numa_enabled: false            # NUMA not applicable
+      
+  # Memory optimizations
+  memory_optimizations:
+    # Memory allocation
+    allocator: "jemalloc"            # Use jemalloc
+    
+    # Memory mapping
+    hugepages: false                 # Don't use hugepages on RPi
+    
+    # Cache optimization
+    cache:
+      l1_optimization: true          # L1 cache optimization
+      l2_optimization: true          # L2 cache optimization
+      
+  # AI HAT+ optimizations
+  ai_hat_optimizations:
+    # Pipeline optimization
+    pipeline:
+      parallel_processing: false     # Single stream processing
+      batch_processing: false        # No batching
+      
+    # Memory optimization
+    memory:
+      zero_copy: true                # Zero-copy transfers
+      memory_mapping: true           # Memory-mapped I/O
+
+# Deployment Pipeline
+deployment:
+  # Installation method
+  installation:
+    method: "package"                # package, docker, source
+    
+    # Package installation
+    package:
+      format: "deb"                  # Debian package
+      repository: "https://repo.core.ai/rpi"
+      
+    # Docker installation (alternative)
+    docker:
+      enabled: false                 # Disabled by default
+      base_image: "arm64v8/python:3.11-slim"
+      
+  # Dependencies
+  dependencies:
+    # System dependencies
+    system:
+      - "python3.11"
+      - "python3-pip"
+      - "git"
+      - "cmake"
+      - "build-essential"
+      
+    # Python dependencies (ARM-optimized)
+    python:
+      - "torch==2.1.0"               # PyTorch
+      - "onnxruntime==1.16.0"        # ONNX Runtime
+      - "numpy==1.24.0"              # NumPy
+      - "librosa==0.10.0"            # Audio processing
+      
+  # Configuration management
+  configuration:
+    # Config file locations
+    config_dir: "/etc/core"
+    user_config_dir: "~/.core"
+    
+    # Default configurations
+    defaults:
+      performance_mode: "balanced"   # Default performance mode
+      audio_device: "auto"           # Auto-detect audio device
+
+# Monitoring Configuration
+monitoring:
+  # System monitoring
+  system:
+    # Resource monitoring
+    resources:
+      cpu_usage: true                # CPU usage
+      memory_usage: true             # Memory usage
+      disk_usage: true               # Disk usage
+      temperature: true              # System temperature
+      
+    # AI HAT+ monitoring
+    ai_hat:
+      enabled: true                  # Monitor AI HAT+
+      temperature: true              # AI HAT+ temperature
+      utilization: true              # AI HAT+ utilization
+      
+    # Network monitoring
+    network:
+      bandwidth_usage: true          # Network bandwidth
+      connection_status: true        # Network connectivity
+      
+  # Performance monitoring
+  performance:
+    # Inference metrics
+    inference:
+      latency: true                  # Inference latency
+      throughput: true               # Throughput (FPS)
+      accuracy: true                 # Model accuracy
+      
+    # Audio pipeline metrics
+    audio:
+      buffer_health: true            # Audio buffer status
+      dropout_rate: true             # Audio dropouts
+      
+  # Logging
+  logging:
+    level: "INFO"                    # Logging level
+    file: "/var/log/core.log" # Log file
+    rotation:
+      max_size: "10MB"               # Maximum log size
+      backup_count: 3                # Number of backups
+
+# Service Configuration
+service:
+  # Service management
+  management:
+    type: "systemd"                  # Use systemd
+    service_name: "core"      # Service name
+    
+  # Service configuration
+  config:
+    # Startup
+    startup:
+      enabled: true                  # Enable auto-start
+      delay: 30                      # Startup delay (seconds)
+      
+    # Runtime
+    runtime:
+      user: "core"            # Run as dedicated user
+      group: "audio"                 # Audio group membership
+      
+    # Resource limits
+    limits:
+      memory_limit: "4GB"            # Memory limit
+      cpu_limit: "400%"              # CPU limit (4 cores)
+      
+  # Health monitoring
+  health:
+    # Health checks
+    checks:
+      interval: 30                   # Health check interval (seconds)
+      timeout: 10                    # Health check timeout
+      retries: 3                     # Number of retries
+      
+    # Restart policy
+    restart:
+      on_failure: true               # Restart on failure
+      max_restarts: 5                # Maximum restarts
+      restart_delay: 10              # Restart delay (seconds)
+
+# Security Configuration
+security:
+  # User management
+  users:
+    service_user: "core"      # Service user
+    service_group: "core"     # Service group
+    
+  # File permissions
+  permissions:
+    config_files: "640"              # Config file permissions
+    log_files: "644"                 # Log file permissions
+    model_files: "644"               # Model file permissions
+    
+  # Network security
+  network:
+    # Firewall
+    firewall:
+      enabled: false                 # UFW disabled by default
+      allowed_ports: [8080]          # Allowed ports
+      
+    # SSL/TLS
+    ssl:
+      enabled: false                 # SSL disabled by default
+      cert_file: null                # SSL certificate
+      key_file: null                 # SSL private key
+
+# Storage Configuration
+storage:
+  # Storage locations
+  locations:
+    models: "/opt/core/models"     # Model storage
+    data: "/opt/core/data"         # Data storage
+    logs: "/var/log/core"          # Log storage
+    cache: "/tmp/core"             # Cache storage
+    
+  # Storage limits
+  limits:
+    models_max: "2GB"                # Maximum model storage
+    data_max: "5GB"                  # Maximum data storage
+    logs_max: "100MB"                # Maximum log storage
+    cache_max: "500MB"               # Maximum cache storage
+    
+  # Cleanup policies
+  cleanup:
+    # Log cleanup
+    logs:
+      retention_days: 7              # Keep logs for 7 days
+      
+    # Cache cleanup
+    cache:
+      max_age_hours: 24              # Clear cache after 24 hours
+      
+    # Data cleanup
+    data:
+      auto_cleanup: false            # Manual data management
+
+# Network Configuration
+network:
+  # API configuration
+  api:
+    host: "0.0.0.0"                 # Bind to all interfaces
+    port: 8080                       # API port
+    workers: 1                       # Single worker
+    
+  # WebSocket configuration
+  websocket:
+    enabled: true                    # Enable WebSocket
+    port: 8081                       # WebSocket port
+    
+  # Discovery
+  discovery:
+    # mDNS discovery
+    mdns:
+      enabled: true                  # Enable mDNS
+      service_name: "core"    # Service name
+      
+    # SSDP discovery
+    ssdp:
+      enabled: false                 # Disable SSDP
+
+# Update Configuration
+updates:
+  # Automatic updates
+  automatic:
+    enabled: false                   # Disabled by default
+    security_only: true              # Only security updates
+    
+  # Manual updates
+  manual:
+    check_frequency: "weekly"        # Check for updates weekly
+    notification: true               # Notify about updates
+    
+  # Model updates
+  models:
+    auto_download: false             # Manual model updates
+    check_frequency: "monthly"       # Check monthly

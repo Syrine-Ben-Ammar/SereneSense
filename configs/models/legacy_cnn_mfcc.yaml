@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+# Configuration for Legacy CNN MFCC Model
+# ==================================================
+# 2D-CNN architecture trained on MFCC features
+# Based on original notebook: train_mad_mfcc_gpu_v2.ipynb
+
+model:
+  type: cnn_mfcc
+  name: cnn_mfcc_legacy
+
+# MFCC Feature Extraction
+# ==================================================
+mfcc:
+  sample_rate: 16000
+  n_mfcc: 40  # Number of MFCC coefficients
+  n_mels: 64  # Number of mel bands
+  n_fft: 1024  # FFT window size
+  hop_length: 512  # Samples between frames
+  f_min: 0.0
+  f_max: null  # None = Nyquist frequency
+
+  # Delta features
+  use_deltas: true  # Include velocity
+  use_delta_deltas: true  # Include acceleration
+  delta_window: 2
+
+  # Normalization
+  normalize: true
+  normalization_type: zscore
+
+  # Duration
+  target_duration: 3.0  # 3 seconds for CNN
+
+# Data Augmentation (SpecAugment)
+# ==================================================
+spec_augment:
+  freq_mask_param: 15  # Percentage
+  num_freq_masks: 2
+  time_mask_param: 10  # Percentage
+  num_time_masks: 2
+  apply_prob: 0.8  # Apply with 80% probability
+
+# CNN Architecture
+# ==================================================
+cnn:
+  num_classes: 7  # MAD dataset classes
+  input_shape: [40, 92, 3]  # [MFCC, time_steps, channels]
+                             # 40 MFCC, 92 frames (3s at 512 hop), 3 channels (MFCC+delta+delta-delta)
+
+  # Convolutional layers
+  conv_filters: [48, 96, 192]
+  conv_kernel_size: [3, 3]
+  pool_size: [2, 2]
+  pool_strides: [2, 2]
+
+  # Regularization
+  dropout_rates: [0.25, 0.30, 0.30, 0.35]  # After each conv layer and dense layer
+  batch_norm: true
+
+  # Dense layers
+  dense_units: 160
+
+  # Training
+  use_class_weights: true
+
+# CRNN Architecture (not used for this config but kept for reference)
+# ==================================================
+crnn:
+  num_classes: 7
+  input_shape: [40, 124, 3]
+  conv_filters: [48, 96, 192]
+  conv_kernel_size: [3, 3]
+  pool_size: [2, 1]
+  conv_dropout_rates: [0.20, 0.25, 0.30]
+  lstm_units: [128, 64]
+  dense_units: 160
+  final_dropout: 0.35
+  use_class_weights: true
+
+# Device Configuration
+# ==================================================
+device: cuda  # "cuda" or "cpu"
+dtype: float32  # "float32" or "float16" for mixed precision
+
+# Checkpoints and Logging
+# ==================================================
+checkpoint_dir: models/checkpoints/legacy
+log_dir: logs/legacy

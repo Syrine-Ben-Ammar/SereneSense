@@ -1,0 +1,44 @@
+# syntax=docker/dockerfile:1.4
+
+FROM nvcr.io/nvidia/l4t-ml:r35.3.1-py3 AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    SERENESENSE_ENV=edge-jetson \
+    SERENESENSE_DATA_DIR=/workspace/data \
+    SERENESENSE_MODEL_DIR=/workspace/models \
+    SERENESENSE_LOG_DIR=/workspace/logs \
+    PATH="/opt/conda/bin:${PATH}"
+
+WORKDIR /workspace
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libsndfile1 \
+        ffmpeg \
+        curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt pyproject.toml setup.py README.md ./ 
+
+# Jetson wheels for torch/torchaudio are preinstalled in l4t-ml base image.
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN pip install --no-cache-dir -e .
+
+RUN useradd --uid 1000 --create-home seren && \
+    chown -R seren:seren /workspace
+
+USER seren
+
+VOLUME ["/workspace/data", "/workspace/models", "/workspace/logs"]
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
+
+ENTRYPOINT ["uvicorn", "src.core.deployment.api.fastapi_server:app", "--host", "0.0.0.0", "--port", "8000"]

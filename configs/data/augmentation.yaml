@@ -1,0 +1,575 @@
+# Data Augmentation Configuration
+# Comprehensive audio augmentation techniques for robust model training
+# Optimized for military vehicle sound detection
+
+# Augmentation Strategy
+strategy:
+  name: "comprehensive"              # comprehensive, basic, aggressive
+  description: "Comprehensive augmentation for military audio data"
+  
+  # Global configuration
+  global_config:
+    probability: 0.8                 # Global augmentation probability
+    chain_augmentations: true        # Allow chaining multiple augmentations
+    max_augmentations: 3             # Maximum augmentations per sample
+    preserve_length: true            # Preserve audio length
+    
+  # Phase-specific configuration
+  phases:
+    train: true                      # Apply during training
+    validation: false                # Skip during validation
+    test: false                      # Skip during testing
+    
+# Time Domain Augmentations
+time_domain:
+  # Time Shifting
+  time_shift:
+    enabled: true                    # Enable time shifting
+    probability: 0.5                 # Probability of application
+    
+    # Shift parameters
+    max_shift_ratio: 0.1             # Maximum shift as ratio of length
+    direction: "both"                # both, left, right
+    
+    # Padding mode for shifts
+    pad_mode: "constant"             # constant, reflect, wrap
+    pad_value: 0.0                   # Padding value
+    
+  # Time Stretching
+  time_stretch:
+    enabled: true                    # Enable time stretching
+    probability: 0.3                 # Probability of application
+    
+    # Stretch parameters
+    stretch_range: [0.8, 1.2]        # Stretch factor range
+    preserve_pitch: true             # Preserve pitch during stretching
+    
+  # Pitch Shifting
+  pitch_shift:
+    enabled: true                    # Enable pitch shifting
+    probability: 0.4                 # Probability of application
+    
+    # Pitch parameters
+    shift_range: [-2, 2]             # Semitone shift range
+    method: "librosa"                # librosa, psola
+    
+  # Speed Perturbation
+  speed_perturbation:
+    enabled: true                    # Enable speed perturbation
+    probability: 0.3                 # Probability of application
+    
+    # Speed parameters
+    speed_range: [0.9, 1.1]          # Speed factor range
+    
+  # Polarity Inversion
+  polarity_inversion:
+    enabled: true                    # Enable polarity inversion
+    probability: 0.1                 # Low probability for subtle effect
+    
+  # Dynamic Range Compression
+  dynamic_range_compression:
+    enabled: true                    # Enable DRC
+    probability: 0.3                 # Probability of application
+    
+    # Compression parameters
+    threshold: -20                   # Threshold in dB
+    ratio: 4.0                       # Compression ratio
+    attack: 5.0                      # Attack time (ms)
+    release: 50.0                    # Release time (ms)
+
+# Noise Augmentations
+noise:
+  # Additive White Gaussian Noise
+  gaussian_noise:
+    enabled: true                    # Enable Gaussian noise
+    probability: 0.6                 # Probability of application
+    
+    # Noise parameters
+    snr_range: [10, 50]              # SNR range in dB
+    
+  # Pink Noise
+  pink_noise:
+    enabled: true                    # Enable pink noise
+    probability: 0.3                 # Probability of application
+    
+    # Noise parameters
+    snr_range: [15, 40]              # SNR range in dB
+    
+  # Brown Noise
+  brown_noise:
+    enabled: true                    # Enable brown noise
+    probability: 0.2                 # Probability of application
+    
+    # Noise parameters
+    snr_range: [20, 45]              # SNR range in dB
+    
+  # Environmental Noise
+  environmental_noise:
+    enabled: true                    # Enable environmental noise
+    probability: 0.4                 # Probability of application
+    
+    # Noise sources
+    noise_sources:
+      - "wind"                       # Wind noise
+      - "rain"                       # Rain noise
+      - "traffic"                    # Traffic noise
+      - "machinery"                  # Machinery noise
+      - "aircraft"                   # Aircraft noise
+      
+    # Noise parameters
+    snr_range: [5, 30]               # SNR range in dB
+    noise_dir: "data/noise"          # Directory containing noise files
+    
+  # Impulse Noise
+  impulse_noise:
+    enabled: true                    # Enable impulse noise
+    probability: 0.2                 # Probability of application
+    
+    # Impulse parameters
+    impulse_density: 0.01            # Density of impulses
+    impulse_amplitude: 0.1           # Amplitude of impulses
+
+# Frequency Domain Augmentations
+frequency_domain:
+  # Frequency Masking
+  frequency_masking:
+    enabled: true                    # Enable frequency masking
+    probability: 0.5                 # Probability of application
+    
+    # Masking parameters
+    max_mask_percentage: 0.15        # Maximum frequency percentage to mask
+    num_masks: 2                     # Number of frequency masks
+    mask_value: 0.0                  # Value to fill masked regions
+    
+  # Time Masking
+  time_masking:
+    enabled: true                    # Enable time masking
+    probability: 0.5                 # Probability of application
+    
+    # Masking parameters
+    max_mask_percentage: 0.10        # Maximum time percentage to mask
+    num_masks: 2                     # Number of time masks
+    mask_value: 0.0                  # Value to fill masked regions
+    
+  # SpecAugment
+  spec_augment:
+    enabled: true                    # Enable SpecAugment
+    probability: 0.7                 # Probability of application
+    
+    # SpecAugment parameters
+    freq_mask_param: 15              # Frequency mask parameter
+    time_mask_param: 35              # Time mask parameter
+    num_freq_masks: 2                # Number of frequency masks
+    num_time_masks: 2                # Number of time masks
+    
+  # Frequency Shifting
+  frequency_shift:
+    enabled: true                    # Enable frequency shifting
+    probability: 0.3                 # Probability of application
+    
+    # Shift parameters
+    shift_range: [-100, 100]         # Frequency shift range in Hz
+    
+  # Spectral Roll-off
+  spectral_rolloff:
+    enabled: true                    # Enable spectral roll-off
+    probability: 0.3                 # Probability of application
+    
+    # Roll-off parameters
+    rolloff_range: [0.8, 1.0]        # Roll-off factor range
+    
+  # Harmonic Distortion
+  harmonic_distortion:
+    enabled: true                    # Enable harmonic distortion
+    probability: 0.2                 # Probability of application
+    
+    # Distortion parameters
+    distortion_range: [0.1, 0.5]     # Distortion factor range
+    num_harmonics: 3                 # Number of harmonics to add
+
+# Filtering Augmentations
+filtering:
+  # Low-pass Filtering
+  lowpass_filter:
+    enabled: true                    # Enable low-pass filtering
+    probability: 0.3                 # Probability of application
+    
+    # Filter parameters
+    cutoff_range: [3000, 7000]       # Cutoff frequency range in Hz
+    order: 5                         # Filter order
+    
+  # High-pass Filtering
+  highpass_filter:
+    enabled: true                    # Enable high-pass filtering
+    probability: 0.3                 # Probability of application
+    
+    # Filter parameters
+    cutoff_range: [100, 500]         # Cutoff frequency range in Hz
+    order: 5                         # Filter order
+    
+  # Band-pass Filtering
+  bandpass_filter:
+    enabled: true                    # Enable band-pass filtering
+    probability: 0.3                 # Probability of application
+    
+    # Filter parameters
+    low_cutoff_range: [200, 800]     # Low cutoff frequency range
+    high_cutoff_range: [3000, 6000]  # High cutoff frequency range
+    order: 5                         # Filter order
+    
+  # Notch Filtering
+  notch_filter:
+    enabled: true                    # Enable notch filtering
+    probability: 0.2                 # Probability of application
+    
+    # Filter parameters
+    notch_frequencies: [50, 60, 400, 1000]  # Common notch frequencies
+    q_factor: 30                     # Quality factor
+    
+  # Emphasis/De-emphasis
+  emphasis:
+    enabled: true                    # Enable emphasis filtering
+    probability: 0.3                 # Probability of application
+    
+    # Emphasis parameters
+    pre_emphasis: 0.95               # Pre-emphasis coefficient
+    de_emphasis: true                # Apply de-emphasis
+
+# Reverberation and Convolution
+reverberation:
+  # Room Impulse Response Convolution
+  room_impulse_response:
+    enabled: true                    # Enable RIR convolution
+    probability: 0.4                 # Probability of application
+    
+    # RIR parameters
+    rir_dir: "data/rir"              # Directory containing RIR files
+    room_types:
+      - "small_room"                 # Small room RIRs
+      - "large_hall"                 # Large hall RIRs
+      - "outdoor"                    # Outdoor RIRs
+      - "vehicle_interior"           # Vehicle interior RIRs
+      
+  # Algorithmic Reverb
+  algorithmic_reverb:
+    enabled: true                    # Enable algorithmic reverb
+    probability: 0.3                 # Probability of application
+    
+    # Reverb parameters
+    room_size_range: [0.1, 0.9]      # Room size range
+    damping_range: [0.1, 0.7]        # Damping range
+    wet_level_range: [0.1, 0.4]      # Wet signal level range
+    
+  # Echo
+  echo:
+    enabled: true                    # Enable echo
+    probability: 0.2                 # Probability of application
+    
+    # Echo parameters
+    delay_range: [50, 500]           # Delay range in ms
+    decay_range: [0.1, 0.6]          # Decay factor range
+    num_echoes: 3                    # Maximum number of echoes
+
+# Channel and Spatial Augmentations
+spatial:
+  # Stereo to Mono Conversion
+  stereo_to_mono:
+    enabled: true                    # Enable stereo to mono
+    probability: 0.3                 # Probability of application
+    
+    # Conversion methods
+    method: "random"                 # random, left, right, average
+    
+  # Channel Swapping
+  channel_swap:
+    enabled: false                   # Disabled for mono audio
+    probability: 0.2                 # Probability of application
+    
+  # Spatial Positioning
+  spatial_positioning:
+    enabled: false                   # Disabled for mono audio
+    probability: 0.3                 # Probability of application
+    
+    # Positioning parameters
+    azimuth_range: [-90, 90]         # Azimuth range in degrees
+    elevation_range: [-30, 30]       # Elevation range in degrees
+
+# Codec and Compression Augmentations
+codec:
+  # Audio Codec Simulation
+  codec_simulation:
+    enabled: true                    # Enable codec simulation
+    probability: 0.3                 # Probability of application
+    
+    # Codec types
+    codecs:
+      - "mp3"                        # MP3 compression
+      - "aac"                        # AAC compression
+      - "ogg"                        # OGG compression
+      - "opus"                       # Opus compression
+      
+    # Quality settings
+    quality_range: [64, 320]         # Bitrate range for lossy codecs
+    
+  # Bit Depth Reduction
+  bit_depth_reduction:
+    enabled: true                    # Enable bit depth reduction
+    probability: 0.2                 # Probability of application
+    
+    # Bit depth options
+    target_bit_depths: [8, 12]       # Target bit depths
+    
+  # Sample Rate Reduction
+  sample_rate_reduction:
+    enabled: true                    # Enable sample rate reduction
+    probability: 0.2                 # Probability of application
+    
+    # Sample rate options
+    target_sample_rates: [8000, 11025, 12000]  # Target sample rates
+
+# Military-Specific Augmentations
+military_specific:
+  # Radio Communication Simulation
+  radio_simulation:
+    enabled: true                    # Enable radio simulation
+    probability: 0.4                 # Probability of application
+    
+    # Radio effects
+    static_noise: true               # Add radio static
+    frequency_response: true         # Apply radio frequency response
+    compression: true                # Apply radio compression
+    
+    # Parameters
+    static_snr_range: [10, 30]       # Static noise SNR range
+    
+  # Distance Simulation
+  distance_simulation:
+    enabled: true                    # Enable distance simulation
+    probability: 0.5                 # Probability of application
+    
+    # Distance parameters
+    distance_range: [100, 2000]      # Distance range in meters
+    
+    # Atmospheric effects
+    atmospheric_absorption: true     # Apply atmospheric absorption
+    ground_reflection: true          # Apply ground reflection
+    
+  # Weather Condition Simulation
+  weather_simulation:
+    enabled: true                    # Enable weather simulation
+    probability: 0.3                 # Probability of application
+    
+    # Weather conditions
+    conditions:
+      - "rain"                       # Rain conditions
+      - "wind"                       # Wind conditions
+      - "fog"                        # Fog conditions (affects sound)
+      - "temperature_inversion"      # Temperature inversion effects
+      
+  # Equipment Aging Simulation
+  equipment_aging:
+    enabled: true                    # Enable equipment aging
+    probability: 0.2                 # Probability of application
+    
+    # Aging effects
+    frequency_response_degradation: true  # Degrade frequency response
+    noise_floor_increase: true       # Increase noise floor
+    dynamic_range_reduction: true    # Reduce dynamic range
+    
+  # Multiple Source Mixing
+  multi_source_mixing:
+    enabled: true                    # Enable multi-source mixing
+    probability: 0.3                 # Probability of application
+    
+    # Mixing parameters
+    max_sources: 3                   # Maximum number of sources
+    mixing_weights: [0.6, 0.3, 0.1]  # Mixing weights
+    
+    # Source types
+    source_types:
+      - "vehicle"                    # Vehicle sounds
+      - "aircraft"                   # Aircraft sounds
+      - "background"                 # Background noise
+      - "communication"              # Communication sounds
+
+# Mix and Composition Augmentations
+mixing:
+  # Mixup
+  mixup:
+    enabled: true                    # Enable mixup
+    probability: 0.5                 # Probability of application
+    
+    # Mixup parameters
+    alpha: 0.8                       # Beta distribution parameter
+    
+  # CutMix
+  cutmix:
+    enabled: true                    # Enable cutmix
+    probability: 0.5                 # Probability of application
+    
+    # CutMix parameters
+    alpha: 1.0                       # Beta distribution parameter
+    
+  # Background Mixing
+  background_mixing:
+    enabled: true                    # Enable background mixing
+    probability: 0.6                 # Probability of application
+    
+    # Background parameters
+    background_dir: "data/backgrounds"  # Background audio directory
+    mixing_ratio_range: [0.1, 0.4]   # Background mixing ratio range
+    
+    # Background types
+    background_types:
+      - "nature"                     # Nature sounds
+      - "urban"                      # Urban sounds
+      - "industrial"                 # Industrial sounds
+      - "military_base"              # Military base ambient
+
+# Augmentation Chaining and Composition
+chaining:
+  # Chain configuration
+  enabled: true                      # Enable augmentation chaining
+  
+  # Chaining strategy
+  strategy: "random"                 # random, sequential, conditional
+  
+  # Chain parameters
+  max_chain_length: 3                # Maximum chain length
+  chain_probability: 0.7             # Probability of chaining
+  
+  # Conditional chaining rules
+  conditional_rules:
+    # If time domain augmentation, reduce frequency domain probability
+    - condition: "time_domain"
+      effect: "reduce_frequency_domain"
+      factor: 0.5
+      
+    # If heavy noise, reduce other augmentations
+    - condition: "heavy_noise"
+      effect: "reduce_others"
+      factor: 0.3
+
+# Quality Control and Validation
+quality_control:
+  # Quality checks
+  checks:
+    # Audio quality validation
+    audio_quality:
+      enabled: true                  # Enable audio quality checks
+      min_snr: 5                     # Minimum SNR after augmentation
+      max_clipping: 0.1              # Maximum clipping allowed
+      
+    # Dynamic range validation
+    dynamic_range:
+      enabled: true                  # Enable dynamic range checks
+      min_dynamic_range: 10          # Minimum dynamic range (dB)
+      
+    # Frequency content validation
+    frequency_content:
+      enabled: true                  # Enable frequency content checks
+      min_frequency: 50              # Minimum frequency content
+      max_frequency: 8000            # Maximum frequency content
+      
+  # Rejection criteria
+  rejection:
+    # Reject if quality too low
+    quality_threshold: 0.3           # Quality threshold (0-1)
+    
+    # Reject if too distorted
+    distortion_threshold: 0.8        # Distortion threshold
+    
+# Performance Configuration
+performance:
+  # Parallel processing
+  parallel:
+    enabled: true                    # Enable parallel processing
+    num_workers: 4                   # Number of worker processes
+    
+  # Caching
+  caching:
+    enabled: true                    # Enable augmentation caching
+    cache_size: 1000                 # Number of augmented samples to cache
+    
+  # Memory optimization
+  memory:
+    in_place: true                   # Apply augmentations in-place when possible
+    
+# Debugging and Visualization
+debugging:
+  # Debug mode
+  enabled: false                     # Enable debug mode
+  
+  # Visualization
+  visualization:
+    enabled: false                   # Enable augmentation visualization
+    save_examples: false             # Save augmentation examples
+    example_dir: "logs/augmentation_examples"
+    
+  # Statistics
+  statistics:
+    enabled: true                    # Enable augmentation statistics
+    track_usage: true                # Track augmentation usage
+    
+# Platform-Specific Optimizations
+platform_optimizations:
+  # CPU optimizations
+  cpu:
+    vectorization: true              # Enable vectorized operations
+    
+  # GPU optimizations (if available)
+  gpu:
+    enabled: false                   # Enable GPU augmentations
+    batch_processing: true           # Process in batches on GPU
+    
+# Dataset-Specific Configuration
+dataset_specific:
+  # MAD dataset optimizations
+  mad:
+    # Class-specific augmentations
+    class_specific:
+      helicopter:
+        pitch_shift_probability: 0.6  # Higher for helicopter sounds
+        doppler_effect: true         # Simulate doppler effect
+        
+      aircraft:
+        distance_simulation_probability: 0.8  # Higher for aircraft
+        atmospheric_effects: true    # Apply atmospheric effects
+        
+      vehicle:
+        engine_variation: true       # Vary engine characteristics
+        road_surface_simulation: true # Simulate different road surfaces
+        
+  # AudioSet optimizations
+  audioset:
+    # Balanced augmentation for large dataset
+    balanced_augmentation: true      # Balance augmentation across classes
+    
+    # Reduced probability for large dataset
+    global_probability: 0.6          # Lower global probability
+
+# Monitoring and Logging
+monitoring:
+  # Usage tracking
+  usage_tracking:
+    enabled: true                    # Track augmentation usage
+    log_frequency: 1000              # Log every N samples
+    
+  # Performance monitoring
+  performance_monitoring:
+    enabled: true                    # Monitor augmentation performance
+    timing: true                     # Track timing information
+    
+  # Error tracking
+  error_tracking:
+    enabled: true                    # Track augmentation errors
+    log_errors: true                 # Log errors to file
+    
+# Export Configuration
+export:
+  # Export augmented data
+  export_augmented: false            # Export augmented samples
+  
+  # Export statistics
+  export_statistics: true            # Export augmentation statistics
+  statistics_file: "augmentation_stats.json"

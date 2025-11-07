@@ -1,0 +1,596 @@
+# Cloud Deployment Configuration
+# Optimized deployment settings for cloud platforms (AWS, GCP, Azure)
+# Focuses on scalability, high availability, and enterprise features
+
+# Platform Configuration
+platform:
+  name: "cloud"
+  type: "multi_cloud"               # multi_cloud, aws, gcp, azure
+  
+  # Supported cloud providers
+  providers:
+    aws:
+      enabled: true                  # Enable AWS deployment
+      regions: ["us-east-1", "us-west-2", "eu-west-1"]
+      instance_types:
+        cpu: ["c5.large", "c5.xlarge", "c5.2xlarge"]
+        gpu: ["p3.2xlarge", "g4dn.xlarge", "g5.xlarge"]
+        
+    gcp:
+      enabled: true                  # Enable GCP deployment
+      regions: ["us-central1", "us-west1", "europe-west1"]
+      instance_types:
+        cpu: ["c2-standard-4", "c2-standard-8"]
+        gpu: ["n1-standard-4-k80", "n1-standard-8-v100"]
+        
+    azure:
+      enabled: true                  # Enable Azure deployment
+      regions: ["eastus", "westus2", "westeurope"]
+      instance_types:
+        cpu: ["Standard_D4s_v3", "Standard_D8s_v3"]
+        gpu: ["Standard_NC6s_v3", "Standard_ND40rs_v2"]
+
+# Container Configuration
+containerization:
+  # Docker configuration
+  docker:
+    # Base images
+    base_images:
+      cpu: "python:3.11-slim"       # CPU-only image
+      gpu: "nvidia/cuda:11.8-devel-ubuntu22.04"  # GPU image
+      
+    # Multi-stage build
+    multi_stage:
+      enabled: true                  # Enable multi-stage build
+      stages:
+        - name: "builder"            # Build stage
+          base: "python:3.11"
+          packages: ["build-essential", "cmake", "git"]
+          
+        - name: "runtime"            # Runtime stage
+          base: "python:3.11-slim"
+          copy_from: "builder"
+          
+    # Image optimization
+    optimization:
+      layer_caching: true            # Enable layer caching
+      distroless: false              # Use distroless images
+      alpine: false                  # Use Alpine Linux
+      
+  # Kubernetes configuration
+  kubernetes:
+    # Deployment configuration
+    deployment:
+      replicas: 3                    # Number of replicas
+      strategy: "RollingUpdate"      # Deployment strategy
+      
+      # Resource requirements
+      resources:
+        requests:
+          cpu: "1000m"               # 1 CPU core
+          memory: "2Gi"              # 2GB memory
+          
+        limits:
+          cpu: "2000m"               # 2 CPU cores
+          memory: "4Gi"              # 4GB memory
+          
+        # GPU resources (optional)
+        gpu:
+          nvidia.com/gpu: 1          # 1 GPU per pod
+          
+    # Service configuration
+    service:
+      type: "LoadBalancer"           # Service type
+      ports:
+        - name: "http"
+          port: 80
+          target_port: 8080
+        - name: "websocket"
+          port: 8081
+          target_port: 8081
+          
+    # Ingress configuration
+    ingress:
+      enabled: true                  # Enable ingress
+      class: "nginx"                 # Ingress class
+      tls: true                      # Enable TLS
+      
+      # SSL certificate
+      ssl:
+        issuer: "letsencrypt-prod"   # Cert-manager issuer
+        
+# Orchestration Configuration
+orchestration:
+  # Container orchestration
+  platform: "kubernetes"            # kubernetes, docker_swarm, ecs
+  
+  # Kubernetes specific
+  kubernetes:
+    # Cluster configuration
+    cluster:
+      version: "1.28"                # Kubernetes version
+      node_pools:
+        - name: "cpu-pool"
+          instance_type: "c5.xlarge"
+          min_nodes: 2
+          max_nodes: 10
+          
+        - name: "gpu-pool"
+          instance_type: "g4dn.xlarge"
+          min_nodes: 0
+          max_nodes: 5
+          
+    # Namespace configuration
+    namespace: "core"         # Application namespace
+    
+    # Service mesh (optional)
+    service_mesh:
+      enabled: false                 # Enable service mesh
+      type: "istio"                  # istio, linkerd, consul
+      
+# Auto-scaling Configuration
+autoscaling:
+  # Horizontal Pod Autoscaler
+  hpa:
+    enabled: true                    # Enable HPA
+    min_replicas: 2                  # Minimum replicas
+    max_replicas: 20                 # Maximum replicas
+    
+    # Scaling metrics
+    metrics:
+      - type: "Resource"
+        resource:
+          name: "cpu"
+          target:
+            type: "Utilization"
+            average_utilization: 70   # Target 70% CPU
+            
+      - type: "Resource"
+        resource:
+          name: "memory"
+          target:
+            type: "Utilization"
+            average_utilization: 80   # Target 80% memory
+            
+    # Custom metrics (optional)
+    custom_metrics:
+      - name: "requests_per_second"
+        target_value: 100            # 100 RPS per pod
+        
+  # Vertical Pod Autoscaler
+  vpa:
+    enabled: false                   # Enable VPA
+    update_mode: "Auto"              # Auto, Initial, Off
+    
+  # Cluster autoscaling
+  cluster_autoscaling:
+    enabled: true                    # Enable cluster autoscaling
+    scale_down_delay: "10m"          # Scale down delay
+    scale_down_unneeded_time: "10m"  # Unneeded time before scale down
+
+# Load Balancing Configuration
+load_balancing:
+  # Load balancer type
+  type: "application"                # application, network, classic
+  
+  # Application Load Balancer
+  alb:
+    # Health checks
+    health_check:
+      path: "/health"                # Health check path
+      interval: 30                   # Check interval (seconds)
+      timeout: 5                     # Timeout (seconds)
+      healthy_threshold: 2           # Healthy threshold
+      unhealthy_threshold: 3         # Unhealthy threshold
+      
+    # SSL configuration
+    ssl:
+      policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+      certificate_arn: null          # SSL certificate ARN
+      
+  # Session affinity
+  session_affinity:
+    enabled: false                   # Enable session affinity
+    type: "cookie"                   # cookie, ip
+    
+# CDN Configuration
+cdn:
+  enabled: true                      # Enable CDN
+  provider: "cloudflare"             # cloudflare, aws_cloudfront, azure_cdn
+  
+  # Caching configuration
+  caching:
+    # Cache policies
+    policies:
+      static_assets:
+        ttl: 86400                   # 24 hours for static assets
+        compress: true               # Enable compression
+        
+      api_responses:
+        ttl: 300                     # 5 minutes for API responses
+        compress: true
+        
+  # Geographic distribution
+  geographic:
+    enabled: true                    # Enable geo-distribution
+    regions: ["us", "eu", "ap"]      # Deployment regions
+
+# Database Configuration
+database:
+  # Database type
+  type: "postgresql"                 # postgresql, mysql, mongodb
+  
+  # PostgreSQL configuration
+  postgresql:
+    # Instance configuration
+    instance:
+      class: "db.r5.large"           # Instance class
+      engine_version: "14.9"         # PostgreSQL version
+      allocated_storage: 100         # Storage in GB
+      storage_encrypted: true        # Enable encryption
+      
+    # High availability
+    high_availability:
+      multi_az: true                 # Multi-AZ deployment
+      read_replicas: 2               # Number of read replicas
+      
+    # Backup configuration
+    backup:
+      retention_period: 7            # Backup retention (days)
+      backup_window: "03:00-04:00"   # Backup window
+      maintenance_window: "sun:04:00-sun:05:00"
+      
+  # Connection pooling
+  connection_pooling:
+    enabled: true                    # Enable connection pooling
+    max_connections: 100             # Maximum connections
+    pool_size: 20                    # Pool size per instance
+
+# Caching Configuration
+caching:
+  # Redis configuration
+  redis:
+    enabled: true                    # Enable Redis caching
+    
+    # Instance configuration
+    instance:
+      node_type: "cache.r6g.large"   # Instance type
+      num_cache_nodes: 3             # Number of nodes
+      engine_version: "7.0"          # Redis version
+      
+    # Cluster configuration
+    cluster:
+      enabled: true                  # Enable cluster mode
+      num_shards: 2                  # Number of shards
+      replicas_per_shard: 1          # Replicas per shard
+      
+    # Security
+    security:
+      auth_token: true               # Enable authentication
+      encryption_at_rest: true       # Enable encryption at rest
+      encryption_in_transit: true    # Enable encryption in transit
+      
+  # Application-level caching
+  application_cache:
+    # Model caching
+    models:
+      enabled: true                  # Cache models in memory
+      size_limit: "2GB"              # Cache size limit
+      ttl: 3600                      # Cache TTL (seconds)
+      
+    # Result caching
+    results:
+      enabled: true                  # Cache inference results
+      size_limit: "500MB"            # Cache size limit
+      ttl: 300                       # Cache TTL (seconds)
+
+# Storage Configuration
+storage:
+  # Object storage
+  object_storage:
+    provider: "s3"                   # s3, gcs, azure_blob
+    
+    # S3 configuration
+    s3:
+      bucket_name: "core-models"
+      region: "us-east-1"
+      
+      # Storage classes
+      storage_classes:
+        models: "STANDARD"           # Standard storage for models
+        logs: "STANDARD_IA"          # Infrequent access for logs
+        backups: "GLACIER"           # Glacier for backups
+        
+      # Lifecycle policies
+      lifecycle:
+        enabled: true                # Enable lifecycle management
+        policies:
+          - name: "log_transition"
+            days: 30
+            transition: "STANDARD_IA"
+            
+  # Block storage
+  block_storage:
+    # EBS configuration
+    ebs:
+      volume_type: "gp3"             # Volume type
+      size: 100                      # Volume size (GB)
+      iops: 3000                     # IOPS
+      throughput: 125                # Throughput (MB/s)
+      
+  # Network File System
+  nfs:
+    enabled: false                   # Enable NFS
+    provider: "efs"                  # efs, azure_files, gcs_filestore
+
+# Monitoring and Observability
+monitoring:
+  # Metrics collection
+  metrics:
+    # Prometheus
+    prometheus:
+      enabled: true                  # Enable Prometheus
+      retention: "15d"               # Metrics retention
+      
+      # Scrape configuration
+      scrape_configs:
+        - job_name: "core"
+          scrape_interval: "30s"
+          metrics_path: "/metrics"
+          
+    # Cloud provider metrics
+    cloud_metrics:
+      enabled: true                  # Enable cloud provider metrics
+      dashboards: true               # Import default dashboards
+      
+  # Logging
+  logging:
+    # Centralized logging
+    centralized:
+      enabled: true                  # Enable centralized logging
+      provider: "elasticsearch"      # elasticsearch, splunk, datadog
+      
+    # Log aggregation
+    aggregation:
+      # Fluentd/Fluent Bit
+      fluent:
+        enabled: true                # Enable Fluent Bit
+        buffer_size: "32MB"          # Buffer size
+        flush_interval: "30s"        # Flush interval
+        
+    # Log retention
+    retention:
+      application_logs: "30d"        # Application log retention
+      access_logs: "90d"             # Access log retention
+      error_logs: "1y"               # Error log retention
+      
+  # Distributed tracing
+  tracing:
+    enabled: true                    # Enable distributed tracing
+    provider: "jaeger"               # jaeger, zipkin, datadog
+    
+    # Sampling
+    sampling:
+      rate: 0.1                      # 10% sampling rate
+      
+  # Alerting
+  alerting:
+    # Alert manager
+    alertmanager:
+      enabled: true                  # Enable AlertManager
+      
+    # Alert rules
+    rules:
+      - name: "high_cpu_usage"
+        condition: "cpu_usage > 80"
+        duration: "5m"
+        severity: "warning"
+        
+      - name: "high_error_rate"
+        condition: "error_rate > 0.05"
+        duration: "2m"
+        severity: "critical"
+        
+      - name: "pod_restart"
+        condition: "pod_restarts > 5"
+        duration: "10m"
+        severity: "warning"
+
+# Security Configuration
+security:
+  # Network security
+  network:
+    # VPC configuration
+    vpc:
+      enabled: true                  # Use dedicated VPC
+      cidr: "10.0.0.0/16"           # VPC CIDR block
+      
+      # Subnets
+      subnets:
+        public:
+          - "10.0.1.0/24"            # Public subnet 1
+          - "10.0.2.0/24"            # Public subnet 2
+        private:
+          - "10.0.10.0/24"           # Private subnet 1
+          - "10.0.20.0/24"           # Private subnet 2
+          
+    # Security groups
+    security_groups:
+      web:
+        ingress:
+          - port: 80
+            protocol: "tcp"
+            source: "0.0.0.0/0"
+          - port: 443
+            protocol: "tcp"
+            source: "0.0.0.0/0"
+            
+      app:
+        ingress:
+          - port: 8080
+            protocol: "tcp"
+            source: "sg-web"
+            
+  # Identity and Access Management
+  iam:
+    # Service accounts
+    service_accounts:
+      - name: "core-api"
+        permissions:
+          - "s3:GetObject"
+          - "s3:PutObject"
+          - "ssm:GetParameter"
+          
+    # RBAC (Kubernetes)
+    rbac:
+      enabled: true                  # Enable RBAC
+      
+      # Roles
+      roles:
+        - name: "core-operator"
+          rules:
+            - api_groups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["get", "list", "watch", "create", "update"]
+              
+  # Secrets management
+  secrets:
+    provider: "kubernetes"           # kubernetes, vault, aws_secrets_manager
+    
+    # Kubernetes secrets
+    kubernetes:
+      # Database secrets
+      database:
+        type: "Opaque"
+        data:
+          username: "encoded_username"
+          password: "encoded_password"
+          
+    # External secrets operator
+    external_secrets:
+      enabled: false                 # Enable external secrets
+      provider: "aws"                # aws, azure, gcp, vault
+      
+  # Certificate management
+  certificates:
+    # Cert-manager
+    cert_manager:
+      enabled: true                  # Enable cert-manager
+      issuer: "letsencrypt"          # Certificate issuer
+      
+    # TLS configuration
+    tls:
+      min_version: "1.2"             # Minimum TLS version
+      cipher_suites: [               # Allowed cipher suites
+        "ECDHE-RSA-AES128-GCM-SHA256",
+        "ECDHE-RSA-AES256-GCM-SHA384"
+      ]
+
+# API Gateway Configuration
+api_gateway:
+  enabled: true                      # Enable API Gateway
+  provider: "nginx"                  # nginx, aws_api_gateway, kong
+  
+  # Rate limiting
+  rate_limiting:
+    enabled: true                    # Enable rate limiting
+    requests_per_minute: 1000        # Requests per minute per IP
+    burst: 50                        # Burst limit
+    
+  # Authentication
+  authentication:
+    enabled: false                   # Enable authentication
+    method: "jwt"                    # jwt, oauth2, api_key
+    
+  # CORS configuration
+  cors:
+    enabled: true                    # Enable CORS
+    allowed_origins: ["*"]           # Allowed origins
+    allowed_methods: ["GET", "POST"] # Allowed methods
+    
+# Performance Configuration
+performance:
+  # GPU optimization
+  gpu:
+    # Multi-GPU support
+    multi_gpu:
+      enabled: true                  # Enable multi-GPU
+      strategy: "data_parallel"      # data_parallel, model_parallel
+      
+    # GPU memory management
+    memory:
+      growth: true                   # Allow memory growth
+      limit: "90%"                   # Memory limit per GPU
+      
+  # Model optimization
+  model_optimization:
+    # TensorRT
+    tensorrt:
+      enabled: true                  # Enable TensorRT
+      precision: "mixed"             # fp32, fp16, int8, mixed
+      
+    # ONNX Runtime
+    onnxruntime:
+      enabled: true                  # Enable ONNX Runtime
+      providers: ["CUDAExecutionProvider", "CPUExecutionProvider"]
+      
+  # Caching strategy
+  caching_strategy:
+    # Model caching
+    model_cache:
+      enabled: true                  # Cache models in memory
+      size: "4GB"                    # Cache size
+      
+    # Result caching
+    result_cache:
+      enabled: true                  # Cache inference results
+      ttl: 300                       # Cache TTL (seconds)
+
+# Backup and Disaster Recovery
+backup:
+  # Backup strategy
+  strategy: "automated"              # automated, manual, hybrid
+  
+  # Automated backups
+  automated:
+    # Database backups
+    database:
+      frequency: "daily"             # Backup frequency
+      retention: "30d"               # Backup retention
+      
+    # Application data backups
+    application_data:
+      frequency: "weekly"            # Backup frequency
+      retention: "90d"               # Backup retention
+      
+  # Disaster recovery
+  disaster_recovery:
+    # RTO/RPO targets
+    rto: "1h"                        # Recovery Time Objective
+    rpo: "15m"                       # Recovery Point Objective
+    
+    # Multi-region deployment
+    multi_region:
+      enabled: false                 # Enable multi-region DR
+      primary_region: "us-east-1"
+      secondary_region: "us-west-2"
+
+# Cost Optimization
+cost_optimization:
+  # Reserved instances
+  reserved_instances:
+    enabled: true                    # Use reserved instances
+    term: "1year"                    # 1year, 3year
+    
+  # Spot instances
+  spot_instances:
+    enabled: false                   # Use spot instances
+    max_price: "0.10"                # Maximum spot price
+    
+  # Resource scheduling
+  resource_scheduling:
+    # Scale down during off-hours
+    off_hours:
+      enabled: false                 # Enable off-hours scaling
+      min_replicas: 1                # Minimum replicas during off-hours
+      schedule: "0 22 * * *"         # Cron schedule for scale down

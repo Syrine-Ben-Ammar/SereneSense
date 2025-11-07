@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  serenesense-api:
+    extends:
+      file: docker-compose.yml
+      service: serenesense-api
+    command: >
+      uvicorn src.core.deployment.api.fastapi_server:app
+        --host 0.0.0.0
+        --port 8000
+        --reload
+    environment:
+      SERENESENSE_ENV: development
+      PYTHONPATH: /workspace
+    volumes:
+      - .:/workspace:delegated
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+
+  serenesense-inference:
+    extends:
+      file: docker-compose.yml
+      service: serenesense-inference
+    environment:
+      SERENESENSE_ENV: development
+      PYTHONPATH: /workspace
+    volumes:
+      - .:/workspace:delegated
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+
+  serenesense-training:
+    extends:
+      file: docker-compose.yml
+      service: serenesense-training
+    profiles: ["training"]
+    environment:
+      SERENESENSE_ENV: development
+      PYTHONPATH: /workspace
+    volumes:
+      - .:/workspace:delegated
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+      - mlflow-artifacts:/workspace/mlruns
+
+  tensorboard:
+    extends:
+      file: docker-compose.yml
+      service: tensorboard
+    profiles: ["monitoring"]
+
+  mlflow:
+    extends:
+      file: docker-compose.yml
+      service: mlflow
+    profiles: ["monitoring"]
+
+volumes:
+  data:
+  models:
+  logs:
+  mlflow-artifacts:

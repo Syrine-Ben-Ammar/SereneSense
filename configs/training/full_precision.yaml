@@ -1,0 +1,495 @@
+# Full Precision Training Configuration
+# High-accuracy training settings for cloud/server deployment
+# Optimized for maximum performance without edge constraints
+
+# Experiment Configuration
+experiment:
+  name: "core_full_precision"
+  description: "Full precision training for maximum accuracy on cloud/server hardware"
+  tags: ["military", "audio", "full_precision", "high_accuracy", "cloud"]
+  version: "1.0.0"
+  
+  # Reproducibility
+  seed: 42
+  deterministic: false                # Allow non-deterministic for speed
+  benchmark: true                     # Enable CUDA benchmarking
+
+# Model Configuration (Full Scale)
+model_scaling:
+  # Use full model capacity
+  scale_factor: 1.0                   # No model scaling
+  
+  # Enhanced architecture
+  enhancements:
+    # Larger embedding dimensions
+    embed_dim_multiplier: 1.0         # No reduction
+    
+    # More attention heads
+    num_heads_multiplier: 1.0         # No reduction
+    
+    # Deeper networks
+    depth_multiplier: 1.0             # No reduction
+    
+    # Wider MLPs
+    mlp_ratio: 4.0                    # Full MLP expansion
+
+# Training Configuration (Intensive)
+training:
+  # Extended training for maximum convergence
+  epochs: 200                         # More epochs for full convergence
+  max_steps: null
+  
+  # Larger batch sizes for better gradient estimates
+  batch_size: 64                      # Larger batch size
+  gradient_accumulation_steps: 2      # Higher accumulation
+  effective_batch_size: 128           # Large effective batch size
+  
+  # Validation configuration
+  validation:
+    batch_size: 128                   # Large validation batches
+    frequency: 1                      # Validate every epoch
+    
+  # Intensive data loading
+  dataloader:
+    num_workers: 8                    # More workers
+    pin_memory: true
+    persistent_workers: true          # Keep workers alive
+    prefetch_factor: 4                # Higher prefetch
+
+# Optimizer Configuration (High Performance)
+optimizer:
+  type: "AdamW"
+  lr: 1e-4                           # Standard learning rate
+  weight_decay: 0.01                  # Standard weight decay
+  betas: [0.9, 0.999]
+  eps: 1e-8
+  amsgrad: false
+  
+  # Advanced optimizer features
+  advanced:
+    # Gradient centralization
+    gradient_centralization: false    # Enable for better convergence
+    
+    # Lookahead optimizer
+    lookahead:
+      enabled: false                  # Enable lookahead wrapper
+      k: 5                           # Lookahead steps
+      alpha: 0.5                     # Lookahead alpha
+      
+    # Rectified Adam
+    rectified_adam: false             # Use rectified Adam variant
+
+# Learning Rate Scheduler (Advanced)
+lr_scheduler:
+  type: "cosine_annealing_warm_restarts"
+  
+  # Cosine annealing with restarts
+  T_0: 20                            # Initial restart period
+  T_mult: 2                          # Period multiplication
+  eta_min: 1e-7                      # Very low minimum LR
+  
+  # Extended warmup
+  warmup:
+    enabled: true
+    steps: 2000                      # Longer warmup
+    method: "cosine"                 # Cosine warmup
+    start_lr: 1e-6
+    
+  # Advanced scheduling
+  advanced:
+    # Polynomial decay option
+    polynomial:
+      enabled: false                  # Alternative to cosine
+      power: 0.9                     # Polynomial power
+      
+    # Exponential decay option
+    exponential:
+      enabled: false                  # Alternative scheduler
+      gamma: 0.95                    # Decay factor
+
+# Loss Configuration (Advanced)
+loss:
+  # Primary loss with advanced features
+  primary:
+    type: "cross_entropy"
+    weight: 1.0
+    label_smoothing: 0.1
+    
+    # Advanced loss features
+    class_weights: "balanced"         # Auto-balance classes
+    
+  # Multiple auxiliary losses
+  auxiliary:
+    enabled: true                     # Enable auxiliary losses
+    
+    losses:
+      # Feature consistency loss
+      - name: "feature_consistency"
+        type: "mse"
+        weight: 0.1
+        
+      # Attention consistency loss
+      - name: "attention_consistency"
+        type: "kl_divergence"
+        weight: 0.05
+        
+  # Advanced loss functions
+  advanced:
+    # Focal loss for hard examples
+    focal:
+      enabled: false                  # Enable for imbalanced data
+      alpha: 1.0
+      gamma: 2.0
+      
+    # Triplet loss for embeddings
+    triplet:
+      enabled: false                  # Enable for metric learning
+      margin: 0.2
+      
+    # Center loss for feature clustering
+    center:
+      enabled: false                  # Enable for better clustering
+      alpha: 0.5
+      num_classes: 7
+
+# Regularization (Comprehensive)
+regularization:
+  # Standard regularization
+  dropout:
+    enabled: true
+    rate: 0.1
+    schedule: null                    # Could add dropout scheduling
+    
+  stochastic_depth:
+    enabled: true
+    drop_path_rate: 0.1
+    
+  gradient_clipping:
+    enabled: true
+    max_norm: 1.0
+    norm_type: 2.0
+    
+  # Advanced regularization techniques
+  advanced:
+    # Spectral normalization
+    spectral_norm:
+      enabled: false                  # Stabilize training
+      power_iterations: 1
+      
+    # Weight standardization
+    weight_standardization: false     # Improve convergence
+    
+    # Shake-Shake regularization
+    shake_shake:
+      enabled: false                  # For residual networks
+      
+    # Cutout regularization
+    cutout:
+      enabled: false                  # Random patch removal
+      size: 16                       # Cutout size
+      
+# Data Augmentation (Intensive)
+augmentation:
+  enabled: true
+  
+  # Comprehensive training augmentations
+  train:
+    # Audio augmentations (full suite)
+    audio:
+      time_shift:
+        enabled: true
+        max_shift: 0.2                # Larger shifts
+        
+      pitch_shift:
+        enabled: true
+        max_steps: 4                  # Larger pitch changes
+        
+      time_stretch:
+        enabled: true                 # Add time stretching
+        stretch_range: [0.8, 1.2]
+        
+      noise_injection:
+        enabled: true
+        snr_range: [5, 50]            # Wider SNR range
+        noise_types: ["gaussian", "uniform", "pink"]
+        
+      reverb:
+        enabled: true                 # Add reverb augmentation
+        room_size_range: [0.1, 0.9]
+        
+    # Spectrogram augmentations (comprehensive)
+    spectrogram:
+      freq_mask:
+        enabled: true
+        max_mask_pct: 0.25            # Larger masks
+        num_masks: 3                  # More masks
+        
+      time_mask:
+        enabled: true
+        max_mask_pct: 0.15            # Larger masks
+        num_masks: 3                  # More masks
+        
+      # Advanced spectrogram augmentations
+      spec_augment_plus:
+        enabled: true                 # Enhanced SpecAugment
+        freq_warp: true              # Frequency warping
+        time_warp: true              # Time warping
+        
+    # Mixing augmentations (aggressive)
+    mixing:
+      mixup:
+        enabled: true
+        alpha: 1.0                    # Higher alpha
+        prob: 0.8                     # Higher probability
+        
+      cutmix:
+        enabled: true
+        alpha: 1.0
+        prob: 0.8
+        
+      # Advanced mixing
+      manifold_mixup:
+        enabled: false                # Mixup in feature space
+        alpha: 0.2
+        
+  # Validation augmentations (test-time)
+  val:
+    enabled: true                     # Enable TTA
+    
+    tta:
+      num_augmentations: 10           # Multiple augmented versions
+      aggregation: "mean"             # Average predictions
+
+# Hardware Configuration (High-End)
+hardware:
+  # Multi-GPU configuration
+  device: "auto"
+  device_ids: null                    # Use all available GPUs
+  
+  # Advanced mixed precision
+  mixed_precision:
+    enabled: true
+    opt_level: "O1"                   # Conservative for accuracy
+    loss_scale: "dynamic"
+    keep_batchnorm_fp32: true         # Keep BN in FP32
+    
+  # Distributed training (multi-node support)
+  distributed:
+    enabled: true                     # Enable DDP
+    strategy: "ddp"
+    backend: "nccl"
+    find_unused_parameters: false
+    
+    # Advanced DDP settings
+    gradient_as_bucket_view: true     # Memory optimization
+    static_graph: false               # Dynamic graph support
+    
+  # Memory optimization (high-end)
+  memory:
+    gradient_checkpointing: false     # Disable for speed
+    empty_cache_frequency: 0          # No cache clearing
+    max_split_size_mb: 512           # Large memory splits
+    
+    # Advanced memory settings
+    max_memory_reserved: "90%"        # Use most of GPU memory
+    memory_format: "channels_last"    # Optimize memory layout
+
+# Monitoring (Comprehensive)
+monitoring:
+  # Detailed progress tracking
+  progress:
+    log_frequency: 25                 # Frequent logging
+    eval_frequency: 100               # Regular evaluation
+    
+  # Comprehensive metrics
+  metrics:
+    classification:
+      - "accuracy"
+      - "top_k_accuracy"
+      - "precision"
+      - "recall"
+      - "f1_score"
+      - "balanced_accuracy"
+      - "cohen_kappa"
+      - "matthews_corrcoef"
+      
+    # Advanced metrics
+    advanced:
+      - "calibration_error"           # Model calibration
+      - "entropy"                     # Prediction entropy
+      - "mutual_information"          # Feature MI
+      
+    # Per-class and confusion matrix
+    per_class: true
+    confusion_matrix: true
+    
+    # Feature analysis
+    feature_analysis:
+      enabled: true                   # Enable feature analysis
+      dimensionality_reduction: "tsne" # tsne, pca, umap
+      
+  # Full experiment tracking
+  tracking:
+    wandb:
+      enabled: true                   # Enable comprehensive tracking
+      project: "core_full"
+      entity: null
+      tags: ["full_precision", "high_accuracy"]
+      notes: "Full precision training for maximum accuracy"
+      
+      # Advanced W&B features
+      watch_model: true               # Watch model gradients
+      log_freq: 100                   # Log frequency
+      
+    mlflow:
+      enabled: true                   # Enable MLflow
+      experiment_name: "core_full_precision"
+      tracking_uri: null
+      
+      # MLflow model registry
+      model_registry: true            # Register best models
+      
+    tensorboard:
+      enabled: true
+      log_dir: "logs/tensorboard_full"
+      log_graph: true                 # Log model graph
+      
+      # Advanced TensorBoard logging
+      log_embeddings: true            # Log embeddings
+      embedding_freq: 1000            # Embedding log frequency
+
+# Checkpointing (Comprehensive)
+checkpointing:
+  save_strategy: "epoch"
+  save_frequency: 1                   # Save every epoch
+  save_best: true
+  monitor_metric: "val_accuracy"
+  monitor_mode: "max"
+  save_top_k: 10                      # Keep more checkpoints
+  save_last: true
+  
+  # Enhanced checkpointing
+  enhanced:
+    save_optimizer_state: true        # Save optimizer state
+    save_scheduler_state: true        # Save scheduler state
+    save_random_state: true           # Save random states
+    
+  checkpoint_dir: "models/checkpoints/full_precision"
+  
+  # Backup strategy
+  backup:
+    enabled: true                     # Enable backup
+    cloud_storage: null               # Cloud storage path
+    backup_frequency: 10              # Backup every 10 epochs
+
+# Early Stopping (Patient)
+early_stopping:
+  enabled: true
+  monitor: "val_accuracy"
+  mode: "max"
+  patience: 20                        # Higher patience for full training
+  min_delta: 0.0005                   # Smaller minimum delta
+  verbose: true
+  
+  # Advanced early stopping
+  advanced:
+    restore_best_weights: true        # Restore best weights
+    baseline: null                    # Baseline value to beat
+
+# Advanced Validation
+validation:
+  # Comprehensive validation strategy
+  strategy: "epoch"
+  frequency: 1
+  
+  # Multiple validation sets
+  validation_sets:
+    - name: "validation"
+      metrics: ["accuracy", "f1_score"]
+    - name: "test"                    # Optional test set evaluation
+      metrics: ["accuracy", "f1_score"]
+      frequency: 10                   # Test every 10 epochs
+      
+  # Advanced validation techniques
+  advanced:
+    # Cross-validation
+    cross_validation:
+      enabled: false                  # Enable k-fold CV
+      k_folds: 5
+      
+    # Bootstrap validation
+    bootstrap:
+      enabled: false                  # Enable bootstrap validation
+      n_bootstrap: 1000
+      
+    # Ensemble validation
+    ensemble_validation:
+      enabled: false                  # Validate ensemble
+      ensemble_size: 5
+
+# Model Analysis and Interpretation
+interpretation:
+  # Model analysis tools
+  analysis:
+    # Gradient-based attribution
+    gradients:
+      enabled: true                   # Enable gradient analysis
+      methods: ["grad_cam", "integrated_gradients"]
+      
+    # Attention visualization
+    attention:
+      enabled: true                   # Visualize attention maps
+      layers: [-1, -2, -3]           # Last 3 layers
+      
+    # Feature importance
+    feature_importance:
+      enabled: true                   # Compute feature importance
+      method: "permutation"           # permutation, shap
+      
+  # Model debugging
+  debugging:
+    # Dead neurons detection
+    dead_neurons:
+      enabled: true                   # Detect dead neurons
+      threshold: 0.01                 # Activation threshold
+      
+    # Gradient flow analysis
+    gradient_flow:
+      enabled: true                   # Analyze gradient flow
+      
+# Hyperparameter Optimization
+hyperparameter_optimization:
+  enabled: false                      # Enable HPO
+  
+  # HPO configuration
+  method: "optuna"                    # optuna, ray_tune, wandb_sweep
+  n_trials: 100                       # Number of trials
+  
+  # Search space
+  search_space:
+    learning_rate: [1e-5, 1e-3]     # LR search range
+    weight_decay: [1e-5, 1e-1]      # WD search range
+    batch_size: [32, 128]            # Batch size options
+    dropout_rate: [0.0, 0.3]         # Dropout range
+    
+# Advanced Training Techniques
+advanced_training:
+  # Curriculum learning
+  curriculum:
+    enabled: false                    # Enable curriculum learning
+    strategy: "difficulty"            # difficulty, length, noise
+    
+  # Progressive training
+  progressive:
+    enabled: false                    # Enable progressive training
+    stages: 3                        # Number of training stages
+    
+  # Multi-task learning
+  multi_task:
+    enabled: false                    # Enable multi-task learning
+    tasks: []                        # Additional tasks
+    
+  # Meta-learning
+  meta_learning:
+    enabled: false                    # Enable meta-learning
+    method: "maml"                   # maml, reptile

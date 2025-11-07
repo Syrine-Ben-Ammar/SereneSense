@@ -1,0 +1,358 @@
+# Edge Optimized Training Configuration
+# Specialized training settings for edge deployment on Jetson and Raspberry Pi
+# Focuses on model compression, quantization-aware training, and efficiency
+
+# Experiment Configuration
+experiment:
+  name: "core_edge_optimized"
+  description: "Edge-optimized training for Jetson and Raspberry Pi deployment"
+  tags: ["military", "audio", "edge", "quantization", "compression"]
+  version: "1.0.0"
+  
+  # Reproducibility
+  seed: 42
+  deterministic: true
+  benchmark: true                     # Enable for consistent hardware
+
+# Model Architecture Modifications for Edge
+model_modifications:
+  # Model compression techniques
+  compression:
+    # Pruning configuration
+    pruning:
+      enabled: true                   # Enable structured pruning
+      method: "magnitude"             # magnitude, random, structured
+      sparsity_schedule:
+        start: 0.0                    # Starting sparsity
+        end: 0.3                      # Target sparsity (30% pruned)
+        frequency: 1000               # Prune every N steps
+        
+    # Knowledge distillation
+    distillation:
+      enabled: true                   # Enable knowledge distillation
+      teacher_model: null             # Path to larger teacher model
+      temperature: 4.0                # Distillation temperature
+      alpha: 0.7                      # Weight for distillation loss
+      
+    # Width scaling (channel reduction)
+    width_scaling:
+      enabled: false                  # Enable width scaling
+      scale_factor: 0.75              # Reduce channels by 25%
+      
+  # Quantization-aware training
+  quantization:
+    enabled: true                     # Enable QAT
+    backend: "fbgemm"                 # fbgemm for CPU, qnnpack for mobile
+    qconfig_type: "qat"               # qat, dynamic, static
+    
+    # Bit precision
+    weights: 8                        # 8-bit weights
+    activations: 8                    # 8-bit activations
+    
+    # QAT schedule
+    start_epoch: 5                    # Start QAT after N epochs
+    freeze_bn_epochs: 2               # Freeze BN for N epochs during QAT
+
+# Training Configuration (Optimized for Edge)
+training:
+  # Reduced training for faster iteration
+  epochs: 50                          # Fewer epochs for edge models
+  max_steps: null
+  
+  # Smaller batch sizes for memory efficiency
+  batch_size: 16                      # Reduced batch size
+  gradient_accumulation_steps: 2      # Maintain effective batch size
+  effective_batch_size: 32
+  
+  # Validation configuration
+  validation:
+    batch_size: 32
+    frequency: 1
+    
+  # Efficient data loading
+  dataloader:
+    num_workers: 2                    # Fewer workers for edge training
+    pin_memory: true
+    persistent_workers: false         # Disable for memory savings
+    prefetch_factor: 1                # Reduced prefetch
+
+# Optimizer Configuration (Edge Optimized)
+optimizer:
+  type: "AdamW"
+  lr: 5e-5                           # Lower learning rate for stability
+  weight_decay: 0.01
+  betas: [0.9, 0.999]
+  eps: 1e-8
+  
+  # Gradient scaling for quantization
+  gradient_scaling:
+    enabled: true                     # Enable gradient scaling
+    init_scale: 65536.0              # Initial scale factor
+    
+# Learning Rate Scheduler (Conservative)
+lr_scheduler:
+  type: "cosine_annealing"
+  T_max: 50                          # Match total epochs
+  eta_min: 1e-6
+  
+  # Shorter warmup for edge training
+  warmup:
+    enabled: true
+    steps: 500                       # Reduced warmup steps
+    method: "linear"
+    start_lr: 1e-6
+
+# Loss Configuration (Edge Optimized)
+loss:
+  # Primary classification loss
+  primary:
+    type: "cross_entropy"
+    weight: 1.0
+    label_smoothing: 0.05            # Reduced label smoothing
+    
+  # Distillation loss (if teacher model available)
+  distillation:
+    enabled: true                     # Enable when teacher model provided
+    weight: 0.3                       # Lower weight for hard targets
+    temperature: 4.0                  # Temperature for soft targets
+    
+  # Regularization losses
+  regularization:
+    # L1 loss for sparsity
+    l1_sparsity:
+      enabled: true                   # Encourage sparsity
+      weight: 1e-5                    # L1 regularization weight
+      
+    # Compression loss
+    compression_loss:
+      enabled: false                  # Enable if using neural compression
+      weight: 0.1
+
+# Regularization (Edge Focused)
+regularization:
+  # Reduced dropout for smaller models
+  dropout:
+    enabled: true
+    rate: 0.05                       # Lower dropout rate
+    
+  # Stochastic depth (less aggressive)
+  stochastic_depth:
+    enabled: true
+    drop_path_rate: 0.05             # Reduced drop path rate
+    
+  # Gradient clipping (more conservative)
+  gradient_clipping:
+    enabled: true
+    max_norm: 0.5                    # Smaller max norm
+    norm_type: 2.0
+
+# Data Augmentation (Efficient)
+augmentation:
+  enabled: true
+  
+  # Simplified augmentations for faster training
+  train:
+    # Audio augmentations (lightweight)
+    audio:
+      time_shift:
+        enabled: true
+        max_shift: 0.05              # Reduced shift range
+        
+      noise_injection:
+        enabled: true
+        snr_range: [15, 40]          # Narrower SNR range
+        
+      # Disable heavy augmentations
+      pitch_shift:
+        enabled: false               # Disable for speed
+        
+    # Spectrogram augmentations (minimal)
+    spectrogram:
+      freq_mask:
+        enabled: true
+        max_mask_pct: 0.10           # Smaller masks
+        num_masks: 1                 # Fewer masks
+        
+      time_mask:
+        enabled: true
+        max_mask_pct: 0.05           # Smaller masks
+        num_masks: 1                 # Fewer masks
+        
+    # Mixing (reduced probability)
+    mixing:
+      mixup:
+        enabled: true
+        alpha: 0.4                   # Reduced alpha
+        prob: 0.3                    # Lower probability
+        
+      cutmix:
+        enabled: false               # Disable for simplicity
+
+# Hardware Configuration (Edge Specific)
+hardware:
+  # Target edge devices
+  device: "auto"
+  device_ids: [0]                    # Single GPU training
+  
+  # Mixed precision (essential for edge)
+  mixed_precision:
+    enabled: true
+    opt_level: "O2"                  # More aggressive optimization
+    loss_scale: "dynamic"
+    
+  # No distributed training for edge
+  distributed:
+    enabled: false
+    
+  # Memory optimization (critical for edge)
+  memory:
+    gradient_checkpointing: true     # Enable to save memory
+    empty_cache_frequency: 50        # More frequent cache clearing
+    max_split_size_mb: 64           # Smaller memory splits
+
+# Monitoring (Lightweight)
+monitoring:
+  # Reduced logging frequency
+  progress:
+    log_frequency: 50                # Log less frequently
+    eval_frequency: 200              # Evaluate less frequently
+    
+  # Essential metrics only
+  metrics:
+    classification:
+      - "accuracy"
+      - "f1_score"
+      - "inference_time"             # Critical for edge
+      - "model_size"                 # Critical for edge
+      
+    # Disable expensive metrics
+    per_class: false
+    confusion_matrix: false
+    
+  # Lightweight tracking
+  tracking:
+    wandb:
+      enabled: false                 # Disable for faster training
+      
+    mlflow:
+      enabled: false
+      
+    tensorboard:
+      enabled: true
+      log_dir: "logs/tensorboard_edge"
+
+# Checkpointing (Optimized)
+checkpointing:
+  save_strategy: "epoch"
+  save_frequency: 5                  # Save less frequently
+  save_best: true
+  monitor_metric: "val_accuracy"
+  monitor_mode: "max"
+  save_top_k: 2                      # Keep fewer checkpoints
+  save_last: true
+  checkpoint_dir: "models/checkpoints/edge"
+
+# Early Stopping (More Aggressive)
+early_stopping:
+  enabled: true
+  monitor: "val_accuracy"
+  mode: "max"
+  patience: 5                        # Shorter patience
+  min_delta: 0.005                   # Larger minimum delta
+  verbose: true
+
+# Edge-Specific Validation
+validation:
+  # Include edge-specific metrics
+  edge_metrics:
+    # Latency measurement
+    latency:
+      enabled: true                  # Measure inference latency
+      warmup_runs: 10               # Warmup iterations
+      timing_runs: 100              # Timing iterations
+      
+    # Memory usage
+    memory:
+      enabled: true                  # Measure memory usage
+      
+    # Power consumption (if available)
+    power:
+      enabled: false                 # Enable if power monitoring available
+      
+  # Hardware-specific validation
+  hardware_validation:
+    jetson:
+      enabled: false                 # Enable for Jetson validation
+      model_path: null               # Path to Jetson-optimized model
+      
+    raspberry_pi:
+      enabled: false                 # Enable for RPi validation
+      model_path: null               # Path to RPi-optimized model
+
+# Post-Training Optimization
+post_training:
+  # Quantization (post-training)
+  quantization:
+    enabled: true                    # Enable post-training quantization
+    method: "dynamic"                # dynamic, static
+    calibration_dataset_size: 100    # Samples for calibration
+    
+  # Pruning (post-training)
+  pruning:
+    enabled: true                    # Enable post-training pruning
+    method: "magnitude"              # Pruning method
+    target_sparsity: 0.4             # Higher sparsity post-training
+    
+  # Model compilation
+  compilation:
+    # TensorRT optimization
+    tensorrt:
+      enabled: false                 # Enable for Jetson deployment
+      precision: "fp16"              # fp16, int8
+      max_workspace_size: "1GB"
+      
+    # ONNX optimization
+    onnx:
+      enabled: true                  # Enable ONNX export
+      opset_version: 11              # ONNX opset version
+      
+    # TorchScript optimization
+    torchscript:
+      enabled: true                  # Enable TorchScript export
+      optimization: true             # Enable TorchScript optimization
+
+# Edge Deployment Testing
+deployment_testing:
+  # Automated testing on target hardware
+  target_devices:
+    jetson_nano:
+      enabled: false                 # Enable for Jetson Nano testing
+      ssh_config: null               # SSH configuration for remote testing
+      
+    raspberry_pi:
+      enabled: false                 # Enable for RPi testing
+      ssh_config: null               # SSH configuration for remote testing
+      
+  # Performance benchmarks
+  benchmarks:
+    latency_threshold: 20            # Maximum acceptable latency (ms)
+    memory_threshold: 512            # Maximum memory usage (MB)
+    accuracy_threshold: 0.85         # Minimum acceptable accuracy
+    
+# Resource Constraints
+constraints:
+  # Model size constraints
+  model_size:
+    max_parameters: 10e6             # Maximum parameters (10M)
+    max_disk_size: "50MB"            # Maximum model file size
+    
+  # Runtime constraints
+  runtime:
+    max_inference_time: 20           # Maximum inference time (ms)
+    max_memory_usage: 512            # Maximum memory usage (MB)
+    min_throughput: 50               # Minimum throughput (FPS)
+    
+  # Power constraints (for battery operation)
+  power:
+    max_power_consumption: 15        # Maximum power (watts)
+    target_battery_life: 8           # Target battery life (hours)

@@ -1,0 +1,37 @@
+# Mapping from VGGSound categories to SereneSense canonical labels
+
+serenesense_labels:
+  helicopter:
+    include:
+      - "helicopter"
+      - "helicopter rotor"
+  fighter_aircraft:
+    include:
+      - "airplane"
+      - "jet engine"
+      - "fighter aircraft"
+  military_vehicle:
+    include:
+      - "tank"
+      - "military vehicle"
+      - "armored vehicle"
+      - "engine revving"
+  truck:
+    include:
+      - "truck"
+      - "lorry"
+      - "pickup truck"
+  footsteps:
+    include:
+      - "footsteps"
+      - "marching"
+  speech:
+    include:
+      - "speech"
+      - "radio communication"
+  background:
+    include:
+      - "ambient noise"
+      - "wind"
+      - "explosion"
+      - "gunshot"

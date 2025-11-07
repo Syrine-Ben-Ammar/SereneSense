@@ -1,0 +1,134 @@
+version: "3.9"
+
+services:
+  serenesense-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: serenesense/api:latest
+    container_name: serenesense-api
+    env_file:
+      - .env
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      TENSORBOARD_LOGDIR: /workspace/logs/tensorboard
+    ports:
+      - "${SERENESENSE_API_PORT:-8000}:8000"
+    volumes:
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+    depends_on:
+      - serenesense-inference
+      - mlflow
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - serenesense
+
+  serenesense-inference:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: serenesense/inference:latest
+    container_name: serenesense-inference
+    command: >
+      bash -c "
+      python scripts/evaluate_model.py
+        --model ${SERENESENSE_MODEL_PATH}
+        --model-type ${SERENESENSE_MODEL_TYPE:-auto}
+        --config ${SERENESENSE_INFERENCE_CONFIG}
+        --dataset ${SERENESENSE_INFERENCE_DATASET:-mad}
+        --test-split ${SERENESENSE_INFERENCE_SPLIT:-validation}
+        --benchmark-performance
+      "
+    env_file:
+      - .env
+    environment:
+      SERENESENSE_MODE: realtime
+    volumes:
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    networks:
+      - serenesense
+
+  serenesense-training:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: serenesense/training:latest
+    container_name: serenesense-training
+    command: >
+      bash -c "
+      python scripts/train_model.py
+        --config ${SERENESENSE_TRAIN_CONFIG}
+        --dataset ${SERENESENSE_TRAIN_DATASET:-mad}
+        --output-dir ${SERENESENSE_TRAIN_OUTPUT_DIR:-outputs}
+      "
+    env_file:
+      - .env
+    volumes:
+      - data:/workspace/data
+      - models:/workspace/models
+      - logs:/workspace/logs
+      - mlflow-artifacts:/workspace/mlruns
+    networks:
+      - serenesense
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+
+  tensorboard:
+    image: ghcr.io/tensorflow/tensorboard:latest
+    container_name: serenesense-tensorboard
+    command: ["tensorboard", "--logdir", "/workspace/logs/tensorboard", "--bind_all"]
+    ports:
+      - "${SERENESENSE_TENSORBOARD_PORT:-6006}:6006"
+    volumes:
+      - logs:/workspace/logs
+    depends_on:
+      - serenesense-training
+    networks:
+      - serenesense
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:2.8.0
+    container_name: serenesense-mlflow
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow.db
+      --default-artifact-root /mlruns
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "${SERENESENSE_MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - mlflow-artifacts:/mlruns
+    networks:
+      - serenesense
+
+networks:
+  serenesense:
+    driver: bridge
+
+volumes:
+  data:
+  models:
+  logs:
+  mlflow-artifacts:

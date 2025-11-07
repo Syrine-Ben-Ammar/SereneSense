@@ -1,0 +1,432 @@
+# NVIDIA Jetson Deployment Configuration
+# Optimized deployment settings for Jetson Orin Nano and other Jetson devices
+# Focuses on TensorRT optimization, power management, and real-time performance
+
+# Device Configuration
+device:
+  name: "jetson"
+  platform: "aarch64"
+  
+  # Supported Jetson models
+  models:
+    jetson_orin_nano:
+      compute_capability: "8.7"      # NVIDIA Ampere
+      cuda_cores: 1024
+      tensor_cores: 32
+      memory_gb: 8
+      power_modes: [10, 15, 25]      # 10W, 15W, 25W modes
+      max_performance: 67            # 67 TOPS INT8
+      
+    jetson_orin_nx:
+      compute_capability: "8.7"
+      cuda_cores: 1024
+      tensor_cores: 64
+      memory_gb: 16
+      power_modes: [20, 30, 50]      # 20W, 30W, 50W modes
+      max_performance: 100           # 100 TOPS INT8
+      
+    jetson_agx_orin:
+      compute_capability: "8.7"
+      cuda_cores: 2048
+      tensor_cores: 64
+      memory_gb: 64
+      power_modes: [30, 50, 65]      # 30W, 50W, 65W modes
+      max_performance: 275           # 275 TOPS INT8
+
+# Model Optimization Configuration
+optimization:
+  # TensorRT Configuration
+  tensorrt:
+    enabled: true                    # Enable TensorRT optimization
+    version: "8.6"                   # TensorRT version
+    
+    # Precision settings
+    precision:
+      mode: "mixed"                  # fp32, fp16, int8, mixed
+      fp16: true                     # Enable FP16
+      int8: true                     # Enable INT8 quantization
+      tf32: true                     # Enable TF32 on Ampere
+      
+    # Optimization settings
+    optimization_level: 5            # 0-5, higher = more optimization
+    max_workspace_size: "2GB"        # Maximum workspace memory
+    
+    # Builder settings
+    builder:
+      max_batch_size: 4              # Maximum batch size
+      avg_timing_iterations: 8       # Timing iterations for optimization
+      min_timing_iterations: 4       # Minimum timing iterations
+      
+    # Calibration for INT8
+    calibration:
+      enabled: true                  # Enable INT8 calibration
+      dataset_size: 500              # Calibration dataset size
+      batch_size: 8                  # Calibration batch size
+      cache_file: "models/calibration_cache.bin"
+      
+    # Dynamic shapes (for variable input sizes)
+    dynamic_shapes:
+      enabled: false                 # Enable dynamic shapes
+      min_shapes: [1, 1, 128, 1024]  # Minimum input shape
+      opt_shapes: [1, 1, 128, 1024]  # Optimal input shape
+      max_shapes: [4, 1, 128, 1024]  # Maximum input shape
+
+  # Model compression
+  compression:
+    # Quantization
+    quantization:
+      method: "post_training"        # post_training, qat
+      calibration_method: "entropy"  # entropy, percentile, mse
+      
+    # Pruning
+    pruning:
+      enabled: true                  # Enable pruning
+      sparsity: 0.3                  # Target sparsity
+      structured: true               # Structured pruning
+      
+    # Knowledge distillation
+    distillation:
+      enabled: false                 # Enable if teacher model available
+      teacher_model: null            # Path to teacher model
+
+# Runtime Configuration
+runtime:
+  # CUDA settings
+  cuda:
+    device_id: 0                     # CUDA device ID
+    stream_priority: 0               # CUDA stream priority
+    
+  # Memory management
+  memory:
+    pool_size: "1GB"                 # Memory pool size
+    growth_limit: "2GB"              # Maximum memory growth
+    enable_peer_access: false        # Multi-GPU peer access
+    
+  # Inference settings
+  inference:
+    batch_size: 1                    # Inference batch size
+    num_streams: 2                   # Number of CUDA streams
+    use_graph_capture: true          # Use CUDA graph capture
+    
+    # Threading
+    num_threads: 4                   # Number of CPU threads
+    thread_affinity: [4, 5, 6, 7]  # CPU core affinity
+    
+# Power Management Configuration
+power_management:
+  # Power mode selection
+  mode: "adaptive"                   # adaptive, performance, efficiency
+  
+  # Power modes configuration
+  modes:
+    efficiency:
+      power_limit: 10                # 10W mode
+      cpu_freq_max: 1.5              # Max CPU frequency (GHz)
+      gpu_freq_max: 0.6              # Max GPU frequency (GHz)
+      emc_freq_max: 2.1              # Max memory frequency (GHz)
+      
+    balanced:
+      power_limit: 15                # 15W mode
+      cpu_freq_max: 2.0              # Max CPU frequency (GHz)
+      gpu_freq_max: 0.8              # Max GPU frequency (GHz)
+      emc_freq_max: 2.8              # Max memory frequency (GHz)
+      
+    performance:
+      power_limit: 25                # 25W mode (max for Orin Nano)
+      cpu_freq_max: 2.4              # Max CPU frequency (GHz)
+      gpu_freq_max: 1.3              # Max GPU frequency (GHz)
+      emc_freq_max: 3.2              # Max memory frequency (GHz)
+  
+  # Thermal management
+  thermal:
+    target_temp: 75                  # Target temperature (°C)
+    throttle_temp: 85                # Throttling temperature (°C)
+    shutdown_temp: 95                # Emergency shutdown (°C)
+    
+  # Fan control
+  fan:
+    enabled: true                    # Enable fan control
+    profile: "adaptive"              # adaptive, quiet, performance
+    min_pwm: 30                      # Minimum fan PWM (%)
+    max_pwm: 100                     # Maximum fan PWM (%)
+
+# Audio Pipeline Configuration
+audio_pipeline:
+  # Input configuration
+  input:
+    # Microphone array support
+    microphone:
+      num_channels: 4                # Number of microphones
+      sample_rate: 16000             # Sample rate
+      bit_depth: 16                  # Bit depth
+      buffer_size: 1024              # Buffer size
+      
+    # Audio interface
+    interface:
+      type: "alsa"                   # alsa, pulseaudio, jack
+      device: "default"              # Audio device
+      
+  # Real-time processing
+  realtime:
+    # Buffer management
+    buffer:
+      size: 4096                     # Buffer size (samples)
+      num_buffers: 4                 # Number of buffers
+      
+    # Processing pipeline
+    processing:
+      chunk_size: 1024               # Processing chunk size
+      overlap: 0.5                   # Overlap ratio
+      
+    # Latency optimization
+    latency:
+      target_ms: 10                  # Target latency (ms)
+      max_ms: 20                     # Maximum acceptable latency
+      
+# Real-time Inference Configuration
+realtime_inference:
+  # Performance targets
+  performance:
+    target_fps: 100                  # Target inference FPS
+    min_fps: 50                      # Minimum acceptable FPS
+    latency_target_ms: 10            # Target latency
+    latency_max_ms: 20               # Maximum latency
+    
+  # Threading configuration
+  threading:
+    inference_threads: 2             # Inference threads
+    audio_threads: 1                 # Audio processing threads
+    io_threads: 1                    # I/O threads
+    
+  # Queue management
+  queues:
+    input_queue_size: 16             # Input queue size
+    output_queue_size: 8             # Output queue size
+    
+# Deployment Pipeline
+deployment:
+  # Model preparation
+  model_preparation:
+    # Model conversion
+    conversion:
+      source_format: "pytorch"       # Source model format
+      target_format: "tensorrt"      # Target format
+      
+    # Optimization pipeline
+    optimization_steps:
+      - "onnx_export"                # Export to ONNX
+      - "onnx_optimization"          # Optimize ONNX graph
+      - "tensorrt_build"             # Build TensorRT engine
+      - "calibration"                # INT8 calibration
+      - "validation"                 # Validate optimized model
+      
+  # Container configuration
+  container:
+    # Docker configuration
+    docker:
+      base_image: "nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3"
+      jetpack_version: "5.1.2"      # JetPack version
+      
+    # Dependencies
+    dependencies:
+      - "tensorrt"
+      - "pycuda"
+      - "onnxruntime-gpu"
+      - "librosa"
+      - "soundfile"
+      
+  # Installation script
+  installation:
+    # System requirements
+    system_requirements:
+      jetpack_min_version: "5.0"     # Minimum JetPack version
+      cuda_min_version: "11.4"       # Minimum CUDA version
+      tensorrt_min_version: "8.5"    # Minimum TensorRT version
+      
+    # Installation steps
+    steps:
+      - "check_compatibility"        # Check system compatibility
+      - "install_dependencies"       # Install dependencies
+      - "optimize_model"             # Optimize model for device
+      - "run_benchmarks"             # Run performance benchmarks
+      - "configure_services"         # Configure system services
+
+# Monitoring and Logging
+monitoring:
+  # System monitoring
+  system:
+    # Resource monitoring
+    resources:
+      cpu_usage: true                # Monitor CPU usage
+      gpu_usage: true                # Monitor GPU usage
+      memory_usage: true             # Monitor memory usage
+      temperature: true              # Monitor temperature
+      power_consumption: true        # Monitor power usage
+      
+    # Frequency
+    monitoring_frequency: 1          # Monitoring frequency (seconds)
+    
+  # Performance monitoring
+  performance:
+    # Inference metrics
+    inference:
+      latency: true                  # Track inference latency
+      throughput: true               # Track throughput
+      accuracy: true                 # Track accuracy
+      
+    # Audio pipeline metrics
+    audio:
+      buffer_underruns: true         # Track buffer underruns
+      processing_time: true          # Track processing time
+      
+  # Logging configuration
+  logging:
+    level: "INFO"                    # Logging level
+    file: "/var/log/core.log" # Log file path
+    max_size: "100MB"                # Maximum log file size
+    backup_count: 5                  # Number of backup files
+
+# Service Configuration
+service:
+  # Systemd service
+  systemd:
+    enabled: true                    # Enable systemd service
+    service_name: "core"      # Service name
+    
+    # Service configuration
+    config:
+      type: "simple"                 # Service type
+      restart: "always"              # Restart policy
+      restart_sec: 10                # Restart delay
+      
+    # Environment
+    environment:
+      CUDA_VISIBLE_DEVICES: "0"     # CUDA device
+      OMP_NUM_THREADS: "4"          # OpenMP threads
+      
+  # Auto-start configuration
+  autostart:
+    enabled: true                    # Enable auto-start
+    delay: 30                        # Startup delay (seconds)
+    
+# Network Configuration
+network:
+  # API server
+  api:
+    host: "0.0.0.0"                 # Bind host
+    port: 8080                       # API port
+    workers: 1                       # Number of workers
+    
+  # WebSocket configuration
+  websocket:
+    enabled: true                    # Enable WebSocket
+    port: 8081                       # WebSocket port
+    max_connections: 10              # Maximum connections
+    
+  # Security
+  security:
+    ssl_enabled: false               # Enable SSL/TLS
+    cert_file: null                  # SSL certificate file
+    key_file: null                   # SSL private key file
+
+# Storage Configuration
+storage:
+  # Model storage
+  models:
+    base_path: "/opt/core/models"
+    cache_size: "1GB"               # Model cache size
+    
+  # Data storage
+  data:
+    base_path: "/opt/core/data"
+    max_size: "10GB"                # Maximum data storage
+    
+  # Logs storage
+  logs:
+    base_path: "/var/log/core"
+    retention_days: 30               # Log retention period
+
+# Update Configuration
+updates:
+  # Model updates
+  model_updates:
+    enabled: true                    # Enable model updates
+    check_frequency: 86400           # Check every 24 hours
+    auto_update: false               # Manual approval required
+    
+  # System updates
+  system_updates:
+    enabled: false                   # Disable automatic system updates
+    security_only: true              # Only security updates
+    
+# Backup Configuration
+backup:
+  # Model backup
+  models:
+    enabled: true                    # Enable model backup
+    frequency: "weekly"              # Backup frequency
+    retention: 4                     # Keep 4 backups
+    
+  # Configuration backup
+  config:
+    enabled: true                    # Enable config backup
+    frequency: "daily"               # Backup frequency
+    retention: 7                     # Keep 7 backups
+
+# Testing Configuration
+testing:
+  # Automated testing
+  automated:
+    enabled: true                    # Enable automated testing
+    frequency: "daily"               # Test frequency
+    
+  # Performance tests
+  performance:
+    # Latency test
+    latency:
+      target_ms: 10                  # Target latency
+      samples: 1000                  # Number of test samples
+      
+    # Throughput test
+    throughput:
+      target_fps: 100                # Target FPS
+      duration_s: 60                 # Test duration
+      
+    # Accuracy test
+    accuracy:
+      test_dataset: "mad_test"       # Test dataset
+      min_accuracy: 0.85             # Minimum accuracy
+      
+# Edge-specific Features
+edge_features:
+  # Offline operation
+  offline:
+    enabled: true                    # Enable offline operation
+    model_cache: true                # Cache models locally
+    
+  # Low power mode
+  low_power:
+    enabled: true                    # Enable low power mode
+    battery_threshold: 20            # Battery threshold (%)
+    
+  # Edge analytics
+  analytics:
+    local_processing: true           # Process analytics locally
+    cloud_sync: false                # Sync to cloud
+    
+# Security Configuration
+security:
+  # Access control
+  access_control:
+    enabled: false                   # Enable access control
+    users: []                        # Authorized users
+    
+  # Encryption
+  encryption:
+    models: false                    # Encrypt models
+    data: false                      # Encrypt data
+    
+  # Firewall
+  firewall:
+    enabled: false                   # Enable firewall rules
+    allowed_ports: [8080, 8081]     # Allowed ports

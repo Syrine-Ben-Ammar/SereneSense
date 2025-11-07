@@ -1,0 +1,265 @@
+# AudioMAE (Audio Masked Autoencoder) Configuration
+# Based on AudioMAE paper: https://arxiv.org/abs/2207.06405
+# Optimized for military vehicle sound detection
+
+model:
+  name: "AudioMAE"
+  type: "audio_masked_autoencoder"
+  version: "1.0"
+  
+  # Architecture Configuration
+  architecture:
+    # Encoder Configuration
+    encoder:
+      # Patch embedding
+      patch_size: [16, 16]              # Height x Width patch size
+      embed_dim: 768                    # Embedding dimension
+      in_channels: 1                    # Mono audio spectrogram
+      
+      # Vision Transformer Encoder
+      depth: 12                         # Number of transformer layers
+      num_heads: 12                     # Number of attention heads
+      mlp_ratio: 4.0                    # MLP hidden dimension ratio
+      
+      # Normalization and regularization
+      norm_layer: "LayerNorm"
+      norm_eps: 1e-6
+      dropout: 0.0                      # Dropout rate
+      attention_dropout: 0.0            # Attention dropout rate
+      drop_path: 0.1                    # Stochastic depth rate
+      
+      # Positional encoding
+      pos_embed_type: "learnable"       # learnable, sinusoidal
+      
+    # Decoder Configuration (for pre-training)
+    decoder:
+      depth: 8                          # Number of decoder layers
+      embed_dim: 512                    # Decoder embedding dimension
+      num_heads: 16                     # Number of attention heads
+      mlp_ratio: 4.0                    # MLP hidden dimension ratio
+      norm_layer: "LayerNorm"
+      norm_eps: 1e-6
+      
+    # Masking Strategy
+    masking:
+      mask_ratio: 0.75                  # Fraction of patches to mask
+      mask_token_learnable: true        # Learnable mask token
+      
+  # Audio Processing Configuration
+  audio:
+    # Input specifications
+    sample_rate: 16000                  # Target sample rate
+    duration: 10.0                      # Audio clip duration (seconds)
+    
+    # Spectrogram configuration
+    spectrogram:
+      n_fft: 1024                       # FFT window size
+      hop_length: 160                   # Hop length (10ms at 16kHz)
+      n_mels: 128                       # Number of mel bins
+      f_min: 50                         # Minimum frequency
+      f_max: 8000                       # Maximum frequency (Nyquist)
+      power: 2.0                        # Power for magnitude spectrogram
+      
+    # Normalization
+    normalization:
+      type: "instance"                  # instance, batch, layer, none
+      mean: [0.485]                     # ImageNet mean (adapted for audio)
+      std: [0.229]                      # ImageNet std (adapted for audio)
+      
+  # Classification Head Configuration
+  classification:
+    num_classes: 7                      # MAD dataset classes
+    hidden_dim: 768                     # Hidden dimension before classifier
+    dropout: 0.5                       # Classifier dropout
+    activation: "gelu"                  # Activation function
+    
+  # Pre-training Configuration
+  pretraining:
+    # Reconstruction loss
+    reconstruction_loss: "mse"          # mse, l1, smooth_l1
+    reconstruction_weight: 1.0          # Loss weight
+    
+    # Normalization for reconstruction
+    norm_pix_loss: true                 # Normalize pixel loss
+    
+    # Contrastive learning (optional)
+    contrastive:
+      enabled: false                    # Enable contrastive learning
+      temperature: 0.07                 # Temperature for InfoNCE
+      weight: 0.1                       # Contrastive loss weight
+      
+  # Fine-tuning Configuration
+  finetuning:
+    # Layer freezing strategy
+    freeze_encoder: false               # Freeze encoder during fine-tuning
+    freeze_layers: 0                    # Number of layers to freeze (from bottom)
+    
+    # Progressive unfreezing
+    progressive_unfreezing:
+      enabled: false                    # Enable progressive unfreezing
+      unfreeze_schedule: [5, 10, 15]    # Epochs to unfreeze layers
+      
+    # Knowledge distillation
+    distillation:
+      enabled: false                    # Enable knowledge distillation
+      teacher_alpha: 0.5               # Teacher loss weight
+      temperature: 4.0                 # Distillation temperature
+
+# Training Configuration
+training:
+  # Optimizer
+  optimizer:
+    type: "AdamW"
+    lr: 1e-4                           # Base learning rate
+    weight_decay: 0.05                 # Weight decay
+    betas: [0.9, 0.95]                # Adam betas
+    eps: 1e-8                         # Epsilon
+    
+  # Learning rate scheduler
+  lr_scheduler:
+    type: "cosine_annealing_warm_restarts"
+    T_0: 10                           # Initial restart period
+    T_mult: 2                         # Period multiplication factor
+    eta_min: 1e-6                     # Minimum learning rate
+    
+    # Warmup
+    warmup:
+      enabled: true                    # Enable warmup
+      steps: 1000                      # Warmup steps
+      start_lr: 1e-6                   # Starting learning rate
+      
+  # Loss configuration
+  loss:
+    # Classification loss
+    classification_loss: "cross_entropy"  # cross_entropy, focal, label_smoothing
+    label_smoothing: 0.1               # Label smoothing parameter
+    
+    # Class weights (for imbalanced data)
+    class_weights: null                # Auto-computed from dataset
+    
+  # Regularization
+  regularization:
+    # Mixup and CutMix
+    mixup:
+      enabled: true                    # Enable mixup
+      alpha: 0.8                       # Mixup alpha parameter
+      cutmix_alpha: 1.0               # CutMix alpha parameter
+      prob: 0.5                        # Probability of applying mixup/cutmix
+      
+    # Data augmentation strength
+    augmentation_strength: 0.7         # Overall augmentation strength
+
+# Inference Configuration
+inference:
+  # Input processing
+  preprocessing:
+    normalize: true                    # Apply normalization
+    resize_mode: "pad"                 # pad, crop, resize
+    
+  # Output processing
+  postprocessing:
+    apply_softmax: true               # Apply softmax to outputs
+    temperature_scaling: 1.0          # Temperature for calibration
+    
+  # Ensemble configuration
+  ensemble:
+    enabled: false                    # Enable model ensemble
+    models: []                        # List of model paths
+    weights: []                       # Ensemble weights
+    aggregation: "average"            # average, voting
+    
+  # Optimization for inference
+  optimization:
+    enable_jit: false                 # Enable JIT compilation
+    enable_half_precision: false      # Enable FP16 inference
+    batch_size: 1                     # Inference batch size
+
+# Hardware Configuration
+hardware:
+  # Device configuration
+  device: "auto"                      # auto, cuda, cpu, mps
+  mixed_precision: true               # Enable mixed precision training
+  
+  # Multi-GPU configuration
+  multi_gpu:
+    enabled: false                    # Enable multi-GPU training
+    strategy: "ddp"                   # ddp, dp
+    find_unused_parameters: false    # For DDP
+    
+  # Memory optimization
+  memory:
+    gradient_checkpointing: false     # Enable gradient checkpointing
+    pin_memory: true                  # Pin memory for data loading
+    non_blocking: true                # Non-blocking data transfer
+    
+# Monitoring and Logging
+monitoring:
+  # Experiment tracking
+  wandb:
+    enabled: false                    # Enable Weights & Biases
+    project: "core-audioMAE"   # W&B project name
+    entity: null                      # W&B entity (username/team)
+    tags: ["audioMAE", "military", "audio"]
+    
+  # MLflow tracking
+  mlflow:
+    enabled: false                    # Enable MLflow
+    experiment_name: "audioMAE_military"
+    tracking_uri: null                # MLflow tracking server
+    
+  # TensorBoard
+  tensorboard:
+    enabled: true                     # Enable TensorBoard logging
+    log_dir: "logs/tensorboard"       # TensorBoard log directory
+    
+  # Metrics to track
+  metrics:
+    - "accuracy"
+    - "precision"
+    - "recall"
+    - "f1_score"
+    - "confusion_matrix"
+    - "top_k_accuracy"
+    
+# Model Checkpointing
+checkpointing:
+  # Save configuration
+  save_best: true                     # Save best model based on validation metric
+  save_last: true                     # Save last model
+  save_top_k: 3                       # Save top-k models
+  monitor: "val_accuracy"             # Metric to monitor
+  mode: "max"                         # max for accuracy, min for loss
+  
+  # Save frequency
+  save_every_n_epochs: 5              # Save every N epochs
+  save_on_train_epoch_end: false      # Save at end of each training epoch
+  
+  # Checkpoint directory
+  dirpath: "models/checkpoints/audioMAE"
+  filename: "audioMAE-{epoch:02d}-{val_accuracy:.2f}"
+  
+# Data Configuration Reference
+data:
+  # This references the data configuration files
+  dataset_config: "configs/data/mad_dataset.yaml"
+  augmentation_config: "configs/data/augmentation.yaml"
+  
+# Deployment Configuration
+deployment:
+  # Model export formats
+  export:
+    onnx: true                        # Export to ONNX
+    torchscript: true                 # Export to TorchScript
+    tensorrt: false                   # Export to TensorRT (requires NVIDIA GPU)
+    
+  # Quantization for edge deployment
+  quantization:
+    enabled: false                    # Enable quantization
+    method: "dynamic"                 # dynamic, static, qat
+    backend: "fbgemm"                 # fbgemm, qnnpack
+    
+  # Edge-specific optimizations
+  edge:
+    target_platform: "jetson"         # jetson, raspberry_pi, generic
+    max_batch_size: 1                 # Maximum batch size for edge
+    fp16: true                        # Enable FP16 for edge deployment
