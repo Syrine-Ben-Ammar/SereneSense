@@ -22,6 +22,7 @@ import dataclasses
 import json
 import logging
 import math
+import os
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -673,12 +674,30 @@ def stratified_split(
     return {"train": train_samples, "validation": val_samples, "test": test_samples}
 
 
+def _process_sample_worker(sample_and_config: Tuple[AudioSample, ProcessingConfig]) -> Tuple[AudioSample, Optional[List[ProcessedSample]], Optional[str]]:
+    """Worker function for multiprocessing that processes a single audio sample.
+
+    Args:
+        sample_and_config: Tuple of (AudioSample, ProcessingConfig)
+
+    Returns:
+        Tuple of (original_sample, processed_results or None, error_message or None)
+    """
+    sample, config = sample_and_config
+    try:
+        results = process_audio_sample(sample, config)
+        return (sample, results, None)
+    except Exception as exc:
+        return (sample, None, str(exc))
+
+
 def process_split(
     split_name: str,
     samples: List[AudioSample],
     config: ProcessingConfig,
     output_root: Path,
     logger: logging.Logger,
+    max_workers: int = 4,
 ) -> Dict[str, Any]:
     if not samples:
         logger.warning("No samples provided for split '%s'", split_name)
@@ -698,24 +717,33 @@ def process_split(
 
     stats = StatisticsAccumulator()
 
-    def worker(sample: AudioSample) -> List[ProcessedSample]:
-        return process_audio_sample(sample, config)
+    # Prepare arguments for worker pool
+    worker_args = [(sample, config) for sample in samples]
+
+    # Ensure max_workers is reasonable for the system
+    cpu_count = os.cpu_count() or 2
+    effective_max_workers = min(max_workers, max(1, cpu_count - 1))
+    logger.info("Using %d worker processes for %s split (CPU count: %d)", effective_max_workers, split_name, cpu_count)
 
     progress = tqdm(total=len(samples), desc=f"Processing {split_name}", unit="sample", leave=False)
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        futures = {executor.submit(worker, sample): sample for sample in samples}
+    with concurrent.futures.ProcessPoolExecutor(max_workers=effective_max_workers) as executor:
+        futures = {executor.submit(_process_sample_worker, args): args[0] for args in worker_args}
         for future in concurrent.futures.as_completed(futures):
             original_sample = futures[future]
             try:
-                results = future.result()
+                original_sample, results, error_msg = future.result()
+                if error_msg:
+                    logger.error("Processing failed for %s: %s", original_sample.path, error_msg)
+                    progress.update(1)
+                    continue
+                if results:
+                    for processed in results:
+                        writer.append(processed)
+                        if zarr_writer:
+                            zarr_writer.append(processed)
+                        stats.update(processed)
             except Exception as exc:
-                logger.error("Processing failed for %s: %s", original_sample.path, exc)
-                continue
-            for processed in results:
-                writer.append(processed)
-                if zarr_writer:
-                    zarr_writer.append(processed)
-                stats.update(processed)
+                logger.error("Unexpected error processing %s: %s", original_sample.path, exc)
             progress.update(1)
     progress.close()
 
@@ -789,6 +817,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--subsets", nargs="*", help="Dataset-specific subset selection (e.g., dev, eval)"
     )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=4,
+        help="Maximum number of parallel worker processes (default: 4, recommended for Windows)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Preview actions without processing")
     parser.add_argument("--verbose", action="store_true", help="Increase logging verbosity")
     return parser.parse_args(argv)
@@ -860,7 +894,7 @@ def prepare_dataset(
                 split_name,
             )
             continue
-        result = process_split(split_name, split_samples, processing_cfg, split_dir, logger)
+        result = process_split(split_name, split_samples, processing_cfg, split_dir, logger, args.max_workers)
         dataset_stats[split_name] = result.get("statistics", {})
 
     if args.dry_run:
