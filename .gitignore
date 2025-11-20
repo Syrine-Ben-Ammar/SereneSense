@@ -189,11 +189,22 @@ logs/
 *.log.*
 
 # Project Specific - Outputs
-outputs/
+# Ignore large model checkpoints but keep configuration and metadata
+outputs/*.pth
+outputs/*.pt
+outputs/*.onnx
+outputs/evaluations/
+outputs/history/
+outputs/phase1/
+outputs/plots/
+outputs/predictions/
+outputs/reports/
+outputs/visualizations/
 output/
 results/
 experiments/
 !outputs/.gitkeep
+!outputs/training_config.json
 !experiments/.gitkeep
 
 # Machine Learning

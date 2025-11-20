@@ -1,0 +1,248 @@
+{
+  "model": {
+    "architecture": {
+      "encoder": {
+        "patch_size": [
+          16,
+          16
+        ],
+        "embed_dim": 768,
+        "in_channels": 1,
+        "depth": 12,
+        "num_heads": 12,
+        "mlp_ratio": 4.0,
+        "norm_layer": "LayerNorm",
+        "norm_eps": "1e-6",
+        "dropout": 0.0,
+        "attention_dropout": 0.0,
+        "drop_path": 0.1,
+        "pos_embed_type": "learnable"
+      },
+      "decoder": {
+        "depth": 8,
+        "embed_dim": 512,
+        "num_heads": 16,
+        "mlp_ratio": 4.0,
+        "norm_layer": "LayerNorm",
+        "norm_eps": "1e-6"
+      },
+      "masking": {
+        "mask_ratio": 0.75,
+        "mask_token_learnable": true
+      }
+    },
+    "num_classes": 7,
+    "input_shape": [
+      1,
+      128,
+      128
+    ],
+    "name": "AudioMAE",
+    "type": "audio_masked_autoencoder",
+    "version": "1.0",
+    "audio": {
+      "sample_rate": 16000,
+      "duration": 10.0,
+      "spectrogram": {
+        "n_fft": 1024,
+        "hop_length": 160,
+        "n_mels": 128,
+        "f_min": 50,
+        "f_max": 8000,
+        "power": 2.0
+      },
+      "normalization": {
+        "type": "instance",
+        "mean": [
+          0.485
+        ],
+        "std": [
+          0.229
+        ]
+      }
+    },
+    "classification": {
+      "num_classes": 7,
+      "hidden_dim": 768,
+      "dropout": 0.5,
+      "activation": "gelu"
+    },
+    "pretraining": {
+      "reconstruction_loss": "mse",
+      "reconstruction_weight": 1.0,
+      "norm_pix_loss": true,
+      "contrastive": {
+        "enabled": false,
+        "temperature": 0.07,
+        "weight": 0.1
+      }
+    },
+    "finetuning": {
+      "freeze_encoder": false,
+      "freeze_layers": 0,
+      "progressive_unfreezing": {
+        "enabled": false,
+        "unfreeze_schedule": [
+          5,
+          10,
+          15
+        ]
+      },
+      "distillation": {
+        "enabled": false,
+        "teacher_alpha": 0.5,
+        "temperature": 4.0
+      }
+    }
+  },
+  "training": {
+    "epochs": 100,
+    "batch_size": 16,
+    "learning_rate": 0.0001,
+    "weight_decay": 1e-05,
+    "mixed_precision": false,
+    "early_stopping_patience": 20,
+    "optimizer": {
+      "type": "AdamW",
+      "lr": "1e-4",
+      "weight_decay": 0.05,
+      "betas": [
+        0.9,
+        0.95
+      ],
+      "eps": "1e-8"
+    },
+    "lr_scheduler": {
+      "type": "cosine_annealing_warm_restarts",
+      "T_0": 10,
+      "T_mult": 2,
+      "eta_min": "1e-6",
+      "warmup": {
+        "enabled": true,
+        "steps": 1000,
+        "start_lr": "1e-6"
+      }
+    },
+    "loss": {
+      "classification_loss": "cross_entropy",
+      "label_smoothing": 0.1,
+      "class_weights": null
+    },
+    "regularization": {
+      "mixup": {
+        "enabled": true,
+        "alpha": 0.8,
+        "cutmix_alpha": 1.0,
+        "prob": 0.5
+      },
+      "augmentation_strength": 0.7
+    }
+  },
+  "data": {
+    "dataset": "mad",
+    "data_dir": "data/raw/mad",
+    "num_workers": 4,
+    "pin_memory": true,
+    "dataset_config": "configs/data/mad_dataset.yaml",
+    "augmentation_config": "configs/data/augmentation.yaml"
+  },
+  "output": {
+    "output_dir": "outputs",
+    "save_interval": 10,
+    "val_interval": 5
+  },
+  "device": "auto",
+  "distributed": false,
+  "inference": {
+    "preprocessing": {
+      "normalize": true,
+      "resize_mode": "pad"
+    },
+    "postprocessing": {
+      "apply_softmax": true,
+      "temperature_scaling": 1.0
+    },
+    "ensemble": {
+      "enabled": false,
+      "models": [],
+      "weights": [],
+      "aggregation": "average"
+    },
+    "optimization": {
+      "enable_jit": false,
+      "enable_half_precision": false,
+      "batch_size": 1
+    }
+  },
+  "hardware": {
+    "device": "auto",
+    "mixed_precision": true,
+    "multi_gpu": {
+      "enabled": false,
+      "strategy": "ddp",
+      "find_unused_parameters": false
+    },
+    "memory": {
+      "gradient_checkpointing": false,
+      "pin_memory": true,
+      "non_blocking": true
+    }
+  },
+  "monitoring": {
+    "wandb": {
+      "enabled": false,
+      "project": "core-audioMAE",
+      "entity": null,
+      "tags": [
+        "audioMAE",
+        "military",
+        "audio"
+      ]
+    },
+    "mlflow": {
+      "enabled": false,
+      "experiment_name": "audioMAE_military",
+      "tracking_uri": null
+    },
+    "tensorboard": {
+      "enabled": true,
+      "log_dir": "logs/tensorboard"
+    },
+    "metrics": [
+      "accuracy",
+      "precision",
+      "recall",
+      "f1_score",
+      "confusion_matrix",
+      "top_k_accuracy"
+    ]
+  },
+  "checkpointing": {
+    "save_best": true,
+    "save_last": true,
+    "save_top_k": 3,
+    "monitor": "val_accuracy",
+    "mode": "max",
+    "save_every_n_epochs": 5,
+    "save_on_train_epoch_end": false,
+    "dirpath": "models/checkpoints/audioMAE",
+    "filename": "audioMAE-{epoch:02d}-{val_accuracy:.2f}"
+  },
+  "deployment": {
+    "export": {
+      "onnx": true,
+      "torchscript": true,
+      "tensorrt": false
+    },
+    "quantization": {
+      "enabled": false,
+      "method": "dynamic",
+      "backend": "fbgemm"
+    },
+    "edge": {
+      "target_platform": "jetson",
+      "max_batch_size": 1,
+      "fp16": true
+    }
+  }
+}
