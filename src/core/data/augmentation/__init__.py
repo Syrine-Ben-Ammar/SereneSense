@@ -15,14 +15,11 @@ while preserving acoustic characteristics essential for vehicle classification.
 
 from .time_domain import (
     TimeAugmentation,
-    AddNoise,
-    TimeStretch,
-    PitchShift,
-    VolumeChange,
-    Reverb,
-    WindNoise,
-    RadioStatic,
-    EngineHarmonics
+    AugmentationConfig,
+    FrequencyAugmentation as TimeFrequencyAugmentation,
+    MilitarySpecificAugmentation,
+    AudioMixup,
+    create_augmentation_pipeline
 )
 
 from .frequency_domain import (
@@ -235,15 +232,11 @@ def get_augmentation_info():
 __all__ = [
     # Time domain augmentations
     'TimeAugmentation',
-    'AddNoise',
-    'TimeStretch', 
-    'PitchShift',
-    'VolumeChange',
-    'Reverb',
-    'WindNoise',
-    'RadioStatic',
-    'EngineHarmonics',
-    
+    'AugmentationConfig',
+    'TimeFrequencyAugmentation',
+    'MilitarySpecificAugmentation',
+    'AudioMixup',
+
     # Frequency domain augmentations
     'FrequencyAugmentation',
     'FrequencyMask',
@@ -251,14 +244,14 @@ __all__ = [
     'SpectralNormalize',
     'FilterBank',
     'MelSpecAugment',
-    
+
     # SpecAugment
     'SpecAugment',
     'FreqMasking',
     'TimeMasking',
     'TimeWarping',
     'CombinedSpecAugment',
-    
+
     # Pipeline utilities
     'CombinedAugmentation',
     'create_augmentation_pipeline',

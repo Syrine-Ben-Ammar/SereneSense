@@ -1,0 +1,12 @@
+================================================================================
+AUDIOMAE TRAINING METRICS SUMMARY
+================================================================================
+
+                 Metric Initial (Epoch 1) Final (Epoch 100)   Best Improvement
+          Training Loss            0.0000            0.0000 0.0000         N/A
+        Validation Loss               N/A               N/A    N/A         N/A
+  Training Accuracy (%)             0.00%             0.00%  0.00%      +0.00%
+Validation Accuracy (%)               N/A               N/A    N/A         N/A
+          Learning Rate          3.52e-05          1.00e-06      -           -
+
+================================================================================

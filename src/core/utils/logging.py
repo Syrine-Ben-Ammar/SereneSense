@@ -462,11 +462,16 @@ def setup_logging(
     else:
         log_file_path = None
 
-    # Get root logger for SereneSense
-    logger = logging.getLogger("serenesense")
-    logger.setLevel(numeric_level)
+    # Configure Python's root logger so all child loggers inherit
+    root_logger = logging.getLogger()
+    root_logger.setLevel(numeric_level)
 
     # Clear existing handlers
+    root_logger.handlers.clear()
+
+    # Also configure serenesense logger specifically
+    logger = logging.getLogger("serenesense")
+    logger.setLevel(numeric_level)
     logger.handlers.clear()
 
     # Choose formatter
@@ -483,11 +488,12 @@ def setup_logging(
                 "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
             )
 
-    # Console handler
+    # Console handler - add to BOTH root and serenesense loggers
     if console_output:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(numeric_level)
         console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
         logger.addHandler(console_handler)
 
     # File handler with rotation
@@ -506,6 +512,7 @@ def setup_logging(
             )
             file_handler.setFormatter(file_formatter)
 
+        root_logger.addHandler(file_handler)
         logger.addHandler(file_handler)
 
     # Store configuration

@@ -42,6 +42,7 @@ from typing import Dict, List, Optional, Tuple, Any, Union, Callable
 from dataclasses import dataclass, field
 from collections import defaultdict
 import json
+from tqdm import tqdm
 
 try:
     import wandb
@@ -57,15 +58,34 @@ try:
 except ImportError:
     MLFLOW_AVAILABLE = False
 
-from ..models.audioMAE import AudioMAEFineTuner
-from ..models.AST import ASTFineTuner
-from ..models.BEATs import BEATsFineTuner
-from ..utils.config import ConfigManager
-from ..utils.metrics import MetricCalculator
-from ..utils.device_utils import DeviceManager
-from .loss_functions import CombinedLoss
-from .optimizers import OptimizerFactory
-from .schedulers import SchedulerFactory
+from ..models.audioMAE import AudioMAEFinetuner
+from ..models.ast import ASTFineTuner
+from ..models.beats import BEATsFineTuner
+from ..utils.config_parser import ConfigParser as ConfigManager
+try:
+    from ..utils.device_utils import DeviceManager
+except ImportError:
+    DeviceManager = None
+
+try:
+    from .loss_functions import CombinedLoss
+except ImportError:
+    CombinedLoss = None
+
+try:
+    from .metrics import MetricCalculator
+except ImportError:
+    MetricCalculator = None
+
+try:
+    from .optimizers import OptimizerFactory
+except ImportError:
+    OptimizerFactory = None
+
+try:
+    from .schedulers import SchedulerFactory
+except ImportError:
+    SchedulerFactory = None
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +198,143 @@ class TrainingState:
     best_checkpoint_path: Optional[str] = None
 
 
+class AudioMAEWrapper:
+    """
+    Wrapper for AudioMAEFinetuner to provide consistent interface with AST/BEATs.
+
+    AudioMAEFinetuner has train_step() and validate() methods with different signatures,
+    while AST/BEATs have training_step() and validation_step() methods.
+    """
+
+    def __init__(self, finetuner):
+        """
+        Initialize wrapper.
+
+        Args:
+            finetuner: AudioMAEFinetuner instance
+        """
+        self.finetuner = finetuner
+        self.model = finetuner.model
+
+    def parameters(self):
+        """Return model parameters"""
+        return self.model.parameters()
+
+    def train(self):
+        """Set model to training mode"""
+        return self.model.train()
+
+    def eval(self):
+        """Set model to evaluation mode"""
+        return self.model.eval()
+
+    def to(self, device):
+        """Move model to device"""
+        self.model = self.model.to(device)
+        self.finetuner.model = self.model
+        self.finetuner.device = device
+        return self
+
+    def state_dict(self):
+        """Get model state dict"""
+        return self.model.state_dict()
+
+    def load_state_dict(self, state_dict, strict=True):
+        """Load model state dict"""
+        return self.model.load_state_dict(state_dict, strict=strict)
+
+    def get_optimizer_parameters(self):
+        """Get parameter groups for optimizer"""
+        # AudioMAEFinetuner creates its own optimizer internally
+        # Return all trainable parameters as a single group
+        return [{"params": [p for p in self.model.parameters() if p.requires_grad]}]
+
+    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
+        """
+        Perform training step with interface compatible with SereneSenseTrainer.
+
+        AudioMAEFinetuner manages its own optimizer and backward pass,
+        so we just call it and return a dummy loss tensor.
+
+        Args:
+            batch: Dictionary with 'spectrograms' and 'labels' keys
+            batch_idx: Batch index
+
+        Returns:
+            Dictionary with 'loss' and metrics
+        """
+        # AudioMAEFinetuner.train_step expects (inputs, targets) tuple
+        spectrograms = batch['spectrograms']
+        labels = batch['labels']
+
+        # Call the finetuner's train_step method (which does optimizer step internally)
+        result = self.finetuner.train_step((spectrograms, labels))
+
+        # Return a tensor that doesn't require grad (since training already happened)
+        loss_value = result['loss'] if isinstance(result['loss'], float) else result['loss'].item()
+        loss_tensor = torch.tensor(loss_value, requires_grad=False)
+
+        return {
+            'loss': loss_tensor,
+            'accuracy': result.get('accuracy', 0.0),
+            '_skip_backward': True  # Flag to tell trainer not to do backward
+        }
+
+    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Dict[str, torch.Tensor]:
+        """
+        Perform validation step with interface compatible with SereneSenseTrainer.
+
+        Args:
+            batch: Dictionary with 'spectrograms' and 'labels' keys
+            batch_idx: Batch index
+
+        Returns:
+            Dictionary with 'loss' and metrics
+        """
+        # For validation, we just do a forward pass and compute metrics
+        spectrograms = batch['spectrograms']
+        labels = batch['labels']
+
+        # Forward pass
+        self.model.eval()
+        with torch.no_grad():
+            output = self.model(spectrograms)
+
+            # Compute loss
+            criterion = nn.CrossEntropyLoss(label_smoothing=self.finetuner.config.label_smoothing)
+            loss = criterion(output.logits, labels)
+
+            # Compute accuracy
+            predictions = torch.argmax(output.logits, dim=-1)
+            accuracy = (predictions == labels).float().mean()
+
+        return {
+            'loss': loss,
+            'accuracy': accuracy.item()
+        }
+
+    def predict(self, spectrograms: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        Make predictions.
+
+        Args:
+            spectrograms: Input spectrograms
+
+        Returns:
+            Dictionary with predictions
+        """
+        self.model.eval()
+        with torch.no_grad():
+            output = self.model(spectrograms)
+            logits = output.logits
+            predictions = torch.argmax(logits, dim=-1)
+
+            return {
+                'logits': logits,
+                'predictions': predictions
+            }
+
+
 class ModelWrapper:
     """
     Unified wrapper for different SereneSense model architectures.
@@ -193,28 +350,186 @@ class ModelWrapper:
 
         # Load model configuration
         config_manager = ConfigManager()
-        self.model_config = config_manager.load_config(config_path)
+        full_config = config_manager.load_yaml(config_path)
+
+        # Extract model-specific configuration
+        # The YAML has a 'model' section, so extract that
+        self.model_config = full_config.get("model", full_config)
 
         # Initialize model based on type
         if self.model_type == "audiomae":
-            from ..models.audioMAE import AudioMAEConfig
-
-            model_config = AudioMAEConfig(**self.model_config)
-            self.model = AudioMAEFineTuner(model_config, pretrained_path=pretrained_path)
+            self._init_audiomae(pretrained_path)
         elif self.model_type == "ast":
-            from ..models.AST import ASTConfig
-
-            model_config = ASTConfig(**self.model_config)
-            self.model = ASTFineTuner(model_config, pretrained_path=pretrained_path)
+            self._init_ast(pretrained_path)
         elif self.model_type == "beats":
-            from ..models.BEATs import BEATsConfig
-
-            model_config = BEATsConfig(**self.model_config)
-            self.model = BEATsFineTuner(model_config, pretrained_path=pretrained_path)
+            self._init_beats(pretrained_path)
         else:
             raise ValueError(f"Unknown model type: {model_type}")
 
         logger.info(f"Initialized {model_type} model with {self.count_parameters():,} parameters")
+
+    def _init_audiomae(self, pretrained_path: Optional[str] = None):
+        """Initialize AudioMAE model with proper configuration"""
+        from ..models.audioMAE import AudioMAE, AudioMAEConfig, FinetuneConfig, AudioMAEFinetuner
+
+        # Map YAML config structure to AudioMAEConfig parameters
+        model_params = {}
+        if "architecture" in self.model_config:
+            arch = self.model_config["architecture"]
+            if "encoder" in arch:
+                enc = arch["encoder"]
+                model_params["embed_dim"] = enc.get("embed_dim", 768)
+                model_params["encoder_depth"] = enc.get("depth", 12)
+                model_params["encoder_num_heads"] = enc.get("num_heads", 12)
+                model_params["mlp_ratio"] = enc.get("mlp_ratio", 4.0)
+                model_params["dropout"] = enc.get("dropout", 0.0)
+                model_params["attention_dropout"] = enc.get("attention_dropout", 0.0)
+                model_params["drop_path"] = enc.get("drop_path", 0.1)
+                if "patch_size" in enc:
+                    patch_size = enc["patch_size"]
+                    model_params["patch_size"] = patch_size[0] if isinstance(patch_size, list) else patch_size
+                model_params["in_chans"] = enc.get("in_channels", 1)
+            if "decoder" in arch:
+                dec = arch["decoder"]
+                model_params["decoder_embed_dim"] = dec.get("embed_dim", 512)
+                model_params["decoder_depth"] = dec.get("depth", 8)
+                model_params["decoder_num_heads"] = dec.get("num_heads", 16)
+            if "masking" in arch:
+                mask = arch["masking"]
+                model_params["mask_ratio"] = mask.get("mask_ratio", 0.75)
+
+        if "classification" in self.model_config:
+            cls = self.model_config["classification"]
+            model_params["num_classes"] = cls.get("num_classes", 7)
+
+        # Handle pretraining config
+        if "pretraining" in self.model_config:
+            pretrain = self.model_config["pretraining"]
+            model_params["norm_pix_loss"] = pretrain.get("norm_pix_loss", True)
+
+        # Set defaults for required parameters
+        model_params.setdefault("num_classes", 7)
+        model_params.setdefault("embed_dim", 768)
+        model_params.setdefault("encoder_depth", 12)
+        model_params.setdefault("encoder_num_heads", 12)
+
+        # Create AudioMAE config
+        audio_mae_config = AudioMAEConfig(**model_params)
+
+        # Create the base AudioMAE model
+        base_model = AudioMAE(audio_mae_config)
+
+        # Load pretrained weights if provided
+        if pretrained_path:
+            logger.info(f"Loading pretrained weights from {pretrained_path}")
+            checkpoint = torch.load(pretrained_path, map_location='cpu')
+            # Handle different checkpoint formats
+            if 'model_state_dict' in checkpoint:
+                state_dict = checkpoint['model_state_dict']
+            elif 'state_dict' in checkpoint:
+                state_dict = checkpoint['state_dict']
+            else:
+                state_dict = checkpoint
+            base_model.load_state_dict(state_dict, strict=False)
+
+        # Create finetune config (FinetuneConfig does NOT have num_classes parameter)
+        finetune_params = {}
+        if "finetuning" in self.model_config:
+            ft = self.model_config["finetuning"]
+            # Note: FinetuneConfig doesn't have freeze_encoder or freeze_layers parameters
+            # It uses freeze_encoder_epochs instead
+            if ft.get("freeze_encoder", False):
+                finetune_params["freeze_encoder_epochs"] = 999  # Freeze indefinitely
+            else:
+                finetune_params["freeze_encoder_epochs"] = 0
+
+        # FinetuneConfig has layer_decay but not num_classes
+        finetune_params.setdefault("layer_decay", 0.75)
+        finetune_cfg = FinetuneConfig(**finetune_params)
+
+        # Create finetuner (which expects model and FinetuneConfig)
+        finetuner = AudioMAEFinetuner(base_model, finetune_cfg)
+
+        # Wrap the AudioMAEFinetuner to provide consistent interface
+        self.model = AudioMAEWrapper(finetuner)
+
+    def _init_ast(self, pretrained_path: Optional[str] = None):
+        """Initialize AST model with proper configuration"""
+        from ..models.ast import ASTFineTuner, FineTuningConfig
+
+        # Build config dict from YAML
+        ast_config = {}
+        if "architecture" in self.model_config:
+            arch = self.model_config["architecture"]
+            if "encoder" in arch:
+                enc = arch["encoder"]
+                ast_config["embed_dim"] = enc.get("embed_dim", 768)
+                ast_config["depth"] = enc.get("depth", 12)
+                ast_config["num_heads"] = enc.get("num_heads", 12)
+                ast_config["mlp_ratio"] = enc.get("mlp_ratio", 4.0)
+                if "patch_size" in enc:
+                    patch_size = enc["patch_size"]
+                    ast_config["patch_size"] = patch_size[0] if isinstance(patch_size, list) else patch_size
+
+        if "classification" in self.model_config:
+            cls = self.model_config["classification"]
+            ast_config["num_classes"] = cls.get("num_classes", 7)
+
+        # Set defaults
+        ast_config.setdefault("num_classes", 7)
+
+        # Create finetune config
+        finetune_config = None
+        if "finetuning" in self.model_config:
+            ft = self.model_config["finetuning"]
+            finetune_config = FineTuningConfig(
+                freeze_patch_embedding=ft.get("freeze_encoder", False),
+                num_frozen_layers=ft.get("freeze_layers", 0)
+            )
+
+        # ASTFineTuner expects (config, finetune_config, pretrained_path)
+        self.model = ASTFineTuner(
+            config=ast_config,
+            finetune_config=finetune_config,
+            pretrained_path=pretrained_path
+        )
+
+    def _init_beats(self, pretrained_path: Optional[str] = None):
+        """Initialize BEATs model with proper configuration"""
+        from ..models.beats import BEATsFineTuner, FineTuningConfig
+
+        # Build config dict from YAML
+        beats_config = {}
+        if "architecture" in self.model_config:
+            arch = self.model_config["architecture"]
+            if "encoder" in arch:
+                enc = arch["encoder"]
+                beats_config["embed_dim"] = enc.get("embed_dim", 768)
+                beats_config["depth"] = enc.get("depth", 12)
+                beats_config["num_heads"] = enc.get("num_heads", 12)
+
+        if "classification" in self.model_config:
+            cls = self.model_config["classification"]
+            beats_config["num_classes"] = cls.get("num_classes", 7)
+
+        # Set defaults
+        beats_config.setdefault("num_classes", 7)
+
+        # Create finetune config
+        finetune_config = None
+        if "finetuning" in self.model_config:
+            ft = self.model_config["finetuning"]
+            finetune_config = FineTuningConfig(
+                freeze_encoder=ft.get("freeze_encoder", False),
+                num_frozen_layers=ft.get("freeze_layers", 0)
+            )
+
+        # BEATsFineTuner expects (config, finetune_config, pretrained_path)
+        self.model = BEATsFineTuner(
+            config=beats_config,
+            finetune_config=finetune_config,
+            pretrained_path=pretrained_path
+        )
 
     def count_parameters(self) -> int:
         """Count total number of parameters"""
@@ -368,31 +683,50 @@ class SereneSenseTrainer:
         # Setup loss function
         if loss_function is not None:
             self.loss_function = loss_function
-        else:
+        elif CombinedLoss is not None:
             self.loss_function = CombinedLoss()
+        else:
+            # Fallback to standard cross entropy loss
+            self.loss_function = nn.CrossEntropyLoss()
 
         # Setup optimizer
-        optimizer_factory = OptimizerFactory()
         param_groups = self.model_wrapper.get_optimizer_parameters()
-        self.optimizer = optimizer_factory.create_optimizer(
-            optimizer_type=self.config.optimizer,
-            parameters=param_groups,
-            learning_rate=self.config.learning_rate,
-            weight_decay=self.config.weight_decay,
-        )
+        if OptimizerFactory is not None:
+            optimizer_factory = OptimizerFactory()
+            self.optimizer = optimizer_factory.create_optimizer(
+                optimizer_type=self.config.optimizer,
+                parameters=param_groups,
+                learning_rate=self.config.learning_rate,
+                weight_decay=self.config.weight_decay,
+            )
+        else:
+            # Fallback to AdamW optimizer
+            self.optimizer = torch.optim.AdamW(
+                param_groups if isinstance(param_groups, list) else [{"params": param_groups}],
+                lr=self.config.learning_rate,
+                weight_decay=self.config.weight_decay,
+            )
 
         # Setup scheduler
-        scheduler_factory = SchedulerFactory()
         total_steps = len(train_dataloader) * self.config.epochs
         warmup_steps = len(train_dataloader) * self.config.warmup_epochs
 
-        self.scheduler = scheduler_factory.create_scheduler(
-            scheduler_type=self.config.scheduler,
-            optimizer=self.optimizer,
-            total_steps=total_steps,
-            warmup_steps=warmup_steps,
-            warmup_start_lr=self.config.warmup_start_lr,
-        )
+        if SchedulerFactory is not None:
+            scheduler_factory = SchedulerFactory()
+            self.scheduler = scheduler_factory.create_scheduler(
+                scheduler_type=self.config.scheduler,
+                optimizer=self.optimizer,
+                total_steps=total_steps,
+                warmup_steps=warmup_steps,
+                warmup_start_lr=self.config.warmup_start_lr,
+            )
+        else:
+            # Fallback to cosine annealing scheduler
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer,
+                T_max=self.config.epochs,
+                eta_min=1e-6,
+            )
 
         logger.info("Training setup completed")
 
@@ -406,7 +740,19 @@ class SereneSenseTrainer:
         if self.train_sampler is not None:
             self.train_sampler.set_epoch(self.state.epoch)
 
-        for batch_idx, batch in enumerate(self.train_dataloader):
+        total_batches = len(self.train_dataloader)
+        logger.info(f"Training epoch {self.state.epoch + 1} - {total_batches} batches")
+
+        # Progress bar for batches
+        pbar = tqdm(
+            enumerate(self.train_dataloader),
+            total=total_batches,
+            desc=f"Epoch {self.state.epoch + 1}/{self.config.epochs}",
+            ncols=100,
+            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        )
+
+        for batch_idx, batch in pbar:
             # Move batch to device
             batch = {
                 k: v.to(self.device, non_blocking=True) if isinstance(v, torch.Tensor) else v
@@ -422,6 +768,15 @@ class SereneSenseTrainer:
                     epoch_metrics[key].append(value.item())
                 else:
                     epoch_metrics[key].append(value)
+
+            # Update progress bar with metrics
+            if epoch_metrics['loss']:
+                avg_loss = np.mean(epoch_metrics['loss'])
+                avg_acc = np.mean(epoch_metrics.get('accuracy', [0.0])) if 'accuracy' in epoch_metrics else 0.0
+                pbar.set_postfix({
+                    'loss': f'{avg_loss:.4f}',
+                    'acc': f'{avg_acc:.3f}' if avg_acc > 0 else 'N/A'
+                })
 
             # Log step metrics
             if (batch_idx + 1) % self.config.log_every_n_steps == 0:
@@ -452,6 +807,11 @@ class SereneSenseTrainer:
         else:
             step_output = self.model_wrapper.training_step(batch, batch_idx)
             loss = step_output["loss"]
+
+        # Check if model handles its own optimization (e.g., AudioMAEFinetuner)
+        if step_output.get('_skip_backward', False):
+            # Model already did backward and optimizer step
+            return step_output
 
         # Scale loss for gradient accumulation
         loss = loss / self.config.gradient_accumulation_steps
@@ -499,8 +859,17 @@ class SereneSenseTrainer:
         self.model.eval()
         epoch_metrics = defaultdict(list)
 
+        # Progress bar for validation
+        val_pbar = tqdm(
+            enumerate(self.val_dataloader),
+            total=len(self.val_dataloader),
+            desc="Validation",
+            ncols=100,
+            leave=False
+        )
+
         with torch.no_grad():
-            for batch_idx, batch in enumerate(self.val_dataloader):
+            for batch_idx, batch in val_pbar:
                 # Move batch to device
                 batch = {
                     k: v.to(self.device, non_blocking=True) if isinstance(v, torch.Tensor) else v
@@ -525,10 +894,21 @@ class SereneSenseTrainer:
     def train(self):
         """Main training loop"""
         logger.info("Starting training...")
+        print("\n" + "="*80)
+        print("🚀 STARTING AUDIOMAE TRAINING")
+        print("="*80)
+        print(f"  Total Epochs:   {self.config.epochs}")
+        print(f"  Batch Size:     {self.config.batch_size}")
+        print(f"  Learning Rate:  {self.config.learning_rate:.2e}")
+        print(f"  Device:         {self.device}")
+        print(f"  Save Directory: {self.config.save_dir}")
+        print("="*80 + "\n")
+
         self.state.training_start_time = time.time()
 
         # Resume from checkpoint if specified
         if self.config.resume_from_checkpoint:
+            print(f"📂 Resuming from checkpoint: {self.config.resume_from_checkpoint}\n")
             self.load_checkpoint(self.config.resume_from_checkpoint)
 
         for epoch in range(self.state.epoch, self.config.epochs):
@@ -600,6 +980,19 @@ class SereneSenseTrainer:
         total_time = time.time() - self.state.training_start_time
         logger.info(f"Training completed in {total_time:.2f} seconds")
 
+        # Print final summary
+        print("\n" + "="*80)
+        print("✅ TRAINING COMPLETED SUCCESSFULLY!")
+        print("="*80)
+        print(f"  Total Time:        {total_time:.2f}s ({total_time/60:.1f} minutes)")
+        print(f"  Epochs Completed:  {self.state.epoch + 1}/{self.config.epochs}")
+        print(f"  Best Metric:       {self.state.best_metric:.4f}")
+        if self.state.best_checkpoint_path:
+            print(f"  Best Model:        {self.state.best_checkpoint_path}")
+        if self.state.last_checkpoint_path:
+            print(f"  Latest Checkpoint: {self.state.last_checkpoint_path}")
+        print("="*80 + "\n")
+
         # Final experiment tracking
         if self.config.use_wandb and WANDB_AVAILABLE:
             wandb.finish()
@@ -637,6 +1030,35 @@ class SereneSenseTrainer:
 
         # Add epoch number
         all_metrics["epoch"] = epoch
+
+        # Print epoch summary to console using print() to bypass logging issues
+        print("\n" + "="*80)
+        print(f"📊 EPOCH {epoch + 1}/{self.config.epochs} SUMMARY")
+        print("="*80)
+        print(f"  Train Loss:     {train_metrics.get('loss', 0.0):.6f}")
+        if 'accuracy' in train_metrics:
+            print(f"  Train Accuracy: {train_metrics['accuracy']:.2%}")
+        if val_metrics:
+            print(f"  Val Loss:       {val_metrics.get('loss', 0.0):.6f}")
+            if 'accuracy' in val_metrics:
+                print(f"  Val Accuracy:   {val_metrics['accuracy']:.2%}")
+        print(f"  Learning Rate:  {all_metrics['learning_rate']:.2e}")
+        print(f"  Epoch Time:     {train_metrics.get('epoch_time', 0.0):.2f}s")
+        print("="*80 + "\n")
+
+        # Also log it
+        logger.info("="*60)
+        logger.info(f"Epoch {epoch + 1}/{self.config.epochs} Summary:")
+        logger.info(f"  Train Loss: {train_metrics.get('loss', 0.0):.4f}")
+        if 'accuracy' in train_metrics:
+            logger.info(f"  Train Accuracy: {train_metrics['accuracy']:.2%}")
+        if val_metrics:
+            logger.info(f"  Val Loss: {val_metrics.get('loss', 0.0):.4f}")
+            if 'accuracy' in val_metrics:
+                logger.info(f"  Val Accuracy: {val_metrics['accuracy']:.2%}")
+        logger.info(f"  Learning Rate: {all_metrics['learning_rate']:.2e}")
+        logger.info(f"  Epoch Time: {train_metrics.get('epoch_time', 0.0):.2f}s")
+        logger.info("="*60)
 
         # Log to experiment tracking
         if self.config.use_wandb and WANDB_AVAILABLE:

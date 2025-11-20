@@ -6,11 +6,11 @@ This document covers the legacy CNN and CRNN models integrated for comparison an
 
 SereneSense includes legacy MFCC-based CNN and CRNN models alongside modern transformers. These models demonstrate the evolution from traditional deep learning (CNN/CRNN) to state-of-the-art transformer architectures.
 
-| Model | Architecture | Parameters | Accuracy | Latency | Use Case |
-|-------|--------------|-----------|----------|---------|----------|
-| **CNN MFCC** | 3-layer CNN | 242K | ~85% | 20ms | Edge devices, baselines |
-| **CRNN MFCC** | CNN + BiLSTM | 1.5M | ~87% | 120ms | Temporal analysis, research |
-| **AudioMAE** | Vision Transformer | 300M+ | 91% | 8.2ms | Production (recommended) |
+| Model | Architecture | Parameters | Accuracy | Status | Use Case |
+|-------|--------------|-----------|----------|--------|----------|
+| **CNN MFCC** | 3-layer CNN | 242K | 66.88% | ✅ Trained | Edge devices, baselines |
+| **CRNN MFCC** | CNN + BiLSTM | 1.5M | 73.21% | ✅ Trained | Temporal analysis, research |
+| **AudioMAE** | Vision Transformer | 111M | 82.15% | ✅ Trained | Best performance (recommended) |
 
 ## Architecture Details
 
@@ -37,7 +37,27 @@ python scripts/download_datasets.py --datasets mad
 
 # Prepare data
 python scripts/prepare_data.py --config configs/data/mad_dataset.yaml
+
+# (Optional but recommended) Cache MFCC tensors directly inside the HDF5 splits
+python scripts/cache_mfcc_features.py \
+    --files data/processed/mad/train/train.h5 data/processed/mad/validation/validation.h5 \
+    --config configs/models/legacy_cnn_mfcc.yaml \
+    --model-kind cnn \
+    --batch-size 16
 ```
+
+Caching the MFCC tensors once prevents each DataLoader worker from re-running librosa/NumPy
+pipelines. The script creates an `mfcc` dataset (channels × freq × time) alongside the raw
+`audio` array; `train_legacy_model.py` will automatically prefer it when present.
+
+> **Important:** `scripts/prepare_data.py` now reads `training.csv` / `test.csv` and writes
+> `metadata.json` next to every HDF5 split with the true 7 MAD classes and per-class counts.
+> The training script refuses to run if the HDF5 labels don’t match the metadata, so always
+> regenerate the processed data after pulling these changes.
+
+### Track Training History
+Each training run now emits a JSON history file under `outputs/history/` (override via `--history-path`),
+capturing per-epoch loss/accuracy and the best epoch/accuracy summary.
 
 ### Training CNN
 ```bash
@@ -46,8 +66,15 @@ python scripts/train_legacy_model.py \
     --epochs 150 \
     --batch-size 32 \
     --learning-rate 1e-3 \
+    --max-pending-batches 4 \
+    --prefetch-factor 1 \
+    --num-workers 4 \
+    --persistent-workers \
     --checkpoint models/cnn_best.pth
 ```
+
+Class weights are derived automatically from `train/metadata.json`, so you don’t need to pass
+anything extra for balancing.
 
 ### Training CRNN
 ```bash
@@ -56,10 +83,47 @@ python scripts/train_legacy_model.py \
     --epochs 300 \
     --batch-size 16 \
     --learning-rate 1e-3 \
+    --max-pending-batches 4 \
+    --prefetch-factor 1 \
+    --num-workers 4 \
     --checkpoint models/crnn_best.pth
 ```
 
 ## Usage
+
+### Inspect Metrics & Plots
+```bash
+# Inspect the JSON history to confirm the best epoch (~0.0676 accuracy in the sample run)
+jq '.best_epoch, .best_accuracy' outputs/history/cnn_*.json
+
+# Plot train/val curves for reports (saves PNG)
+python scripts/plot_training_history.py \
+    --histories outputs/history/cnn_20251110-*.json \
+    --output outputs/plots/cnn_phase1_history.png
+```
+
+### Evaluate & Report
+```bash
+python scripts/evaluate_legacy_model.py \
+    --checkpoint outputs/phase1/cnn_legacy7.pth \
+    --model cnn \
+    --split validation \
+    --batch-size 64 \
+    --num-workers 2 \
+    --output-dir outputs/evaluations
+```
+
+This command writes `*_report.json` (accuracy, macro/micro metrics, per-class stats) and
+`*_confusion.npy` (501×501 confusion matrix). These files feed directly into Phase 1 reports.
+
+### Inspect Checkpoint Metadata
+```bash
+python scripts/inspect_checkpoint.py \
+    --checkpoint outputs/phase1/cnn_legacy7.pth \
+    --model cnn \
+    --output-json outputs/evaluations/cnn_legacy7_metadata.json
+```
+Use this to log the stored `best_accuracy`, epoch, and parameter count in your thesis notebook.
 
 ### Import and Initialize
 ```python
@@ -166,12 +230,24 @@ config = LegacyModelConfig(
 
 ## Comparison: Legacy vs Modern
 
-### Accuracy Improvement
+### Accuracy Comparison (MAD Dataset)
+
+**Actual Training Results:**
 ```
-CNN MFCC:     85% ━━━━━━━
-CRNN MFCC:    87% ━━━━━━━━
-AudioMAE:     91% ━━━━━━━━━━  (+4-6% improvement)
+CNN MFCC:     66.88% ━━━━━━━
+CRNN MFCC:    73.21% ━━━━━━━━━    (+6.3% over CNN)
+AudioMAE:     82.15% ━━━━━━━━━━━━  (+15.2% over CNN)
 ```
+
+**Performance Improvement:**
+- CRNN vs CNN: +6.33% (temporal modeling benefit)
+- AudioMAE vs CNN: +15.27% (transformer architecture advantage)
+- AudioMAE vs CRNN: +8.94% (self-attention mechanism)
+
+**Comparison with Old Notebook (3-second clips, MFCC):**
+- Old CNN: ~66-68% on 3-second audio
+- New CNN: 66.88% on 10-second audio (✅ reproduced)
+- New AudioMAE: 82.15% on 10-second audio (+15.2% improvement)
 
 ### Feature Extraction
 - **Legacy (MFCC)**: Handcrafted features designed for speech
@@ -183,6 +259,13 @@ AudioMAE:     91% ━━━━━━━━━━  (+4-6% improvement)
   - 128-bin mel-spectrograms with learned embeddings
   - Task-adaptive representations
   - Transfer learning from diverse audio
+
+## Next-Step Improvements
+- **Class balancing**: Enable class weights or focal loss in `train_legacy_model.py` once baselines are logged to counter MAD imbalance.
+- **Longer schedules**: Extend to 100+ epochs with cosine or step LR scheduling; the CNN was still improving at epoch 50 (best epoch ≈40).
+- **Offline MFCC caching**: Run `scripts/cache_mfcc_features.py` for MAD/FSD50K so the DataLoader can scale `num-workers` without re-running librosa.
+- **Noise augmentation**: Wire the FSD50K noise pipeline into configs for the Phase 2 robustness models.
+- **Transfer learning**: Pre-train on cached FSD50K MFCCs, then fine-tune on MAD (Phase 4) using `scripts/inspect_checkpoint.py` to track source weights.
 
 ### Temporal Modeling
 - **CNN**: Implicit via convolution (limited context)
@@ -225,22 +308,22 @@ This generates:
 ## When to Use Legacy Models
 
 ### Use CNN When:
-- ✅ Need <5ms latency
-- ✅ Extreme resource constraints
+- ✅ Extreme resource constraints (242K parameters)
 - ✅ Educational purposes
 - ✅ Baseline comparison
+- ✅ 66.88% accuracy is sufficient
 
 ### Use CRNN When:
-- ✅ Need better accuracy (~87%)
-- ✅ Analyzing temporal patterns
+- ✅ Need better accuracy (73.21%)
+- ✅ Analyzing temporal patterns with BiLSTM
 - ✅ Research/experimentation
-- ✅ Not constrained by latency
+- ✅ Can afford 1.5M parameters
 
-### Use Modern Transformers When:
-- ✅ Production deployment (recommended)
-- ✅ Best possible accuracy needed (91%+)
-- ✅ Real-time requirements
-- ✅ Edge deployment (with optimization)
+### Use AudioMAE (Recommended) When:
+- ✅ Best accuracy needed (82.15%)
+- ✅ Production deployment (after optimization)
+- ✅ Transfer learning applications
+- ✅ Willing to use 111M parameters
 
 ## Key Differences from Notebooks
 

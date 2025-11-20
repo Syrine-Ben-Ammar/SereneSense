@@ -798,7 +798,7 @@ def create_spectrogram_generator(
 def get_spectrogram_info():
     """
     Get information about available spectrogram types.
-    
+
     Returns:
         Dictionary with spectrogram information
     """
@@ -816,3 +816,11 @@ def get_spectrogram_info():
         },
         'recommended_for_military': 'mel'
     }
+
+
+# Backward compatibility aliases
+# These aliases provide compatibility with legacy code that expects *Processor naming
+SpectrogramProcessor = SpectrogramGenerator
+MelSpectrogramProcessor = MelSpectrogramGenerator
+STFTProcessor = STFTGenerator
+CQTProcessor = CQTGenerator

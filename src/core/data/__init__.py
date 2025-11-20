@@ -31,6 +31,7 @@ Example:
 """
 
 import logging
+from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
 import warnings
 
@@ -42,18 +43,21 @@ logger = logging.getLogger(__name__)
 # Import core data components
 try:
     from .loaders.mad_loader import MADDataset, MADDataLoader
-    from .loaders.audioset_loader import AudioSetDataset, AudioSetDataLoader
-    from .loaders.fsd50k_loader import FSD50KDataset, FSD50KDataLoader
-    
+    from .loaders.audioset_loader import AudioSetDataset, AudioSetDataModule
+    from .loaders.fsd50k_loader import FSD50KDataset, FSD50KDataModule
+    # Backward compatibility aliases
+    AudioSetDataLoader = AudioSetDataModule
+    FSD50KDataLoader = FSD50KDataModule
+
 except ImportError as e:
     warnings.warn(f"Some data loaders could not be imported: {e}", ImportWarning)
     logger.warning(f"Import error in data loaders: {e}")
 
 try:
-    from .augmentation.time_domain import TimeDomainAugmentation
-    from .augmentation.frequency_domain import FrequencyDomainAugmentation
+    from .augmentation.time_domain import TimeAugmentation
+    from .augmentation.frequency_domain import FrequencyAugmentation
     from .augmentation.spec_augment import SpecAugment
-    
+
 except ImportError as e:
     warnings.warn(f"Some augmentation modules could not be imported: {e}", ImportWarning)
     logger.warning(f"Import error in augmentation: {e}")
@@ -229,9 +233,9 @@ class DataPipeline:
         """
         # This would typically combine multiple augmentation techniques
         # For now, return a placeholder
-        from .augmentation.time_domain import TimeDomainAugmentation
-        
-        self._augmenter = TimeDomainAugmentation(self.augmentation_config)
+        from .augmentation.time_domain import TimeAugmentation
+
+        self._augmenter = TimeAugmentation(self.augmentation_config)
         return self._augmenter
     
     def setup_preprocessing(self) -> 'BasePreprocessor':
@@ -537,15 +541,17 @@ def get_dataset_info(dataset_name: str) -> Dict[str, Any]:
 __all__ = [
     # Dataset loaders
     "MADDataset",
-    "MADDataLoader", 
+    "MADDataLoader",
     "AudioSetDataset",
-    "AudioSetDataLoader",
+    "AudioSetDataModule",
+    "AudioSetDataLoader",  # Alias
     "FSD50KDataset",
-    "FSD50KDataLoader",
+    "FSD50KDataModule",
+    "FSD50KDataLoader",  # Alias
     
     # Augmentation
-    "TimeDomainAugmentation",
-    "FrequencyDomainAugmentation", 
+    "TimeAugmentation",
+    "FrequencyAugmentation",
     "SpecAugment",
     
     # Preprocessing

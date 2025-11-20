@@ -1,0 +1,17 @@
+================================================================================
+Quick AudioMAE Evaluation
+================================================================================
+
+Device: cuda
+
+Loading: outputs/checkpoint_audiomae_099.pth
+Model loaded! Parameters: 111,089,927
+
+Loading validation data...
+Traceback (most recent call last):
+  File "C:\Users\MDN\Desktop\SereneSense\scripts\quick_evaluate.py", line 162, in <module>
+    acc = evaluate()
+  File "C:\Users\MDN\Desktop\SereneSense\scripts\quick_evaluate.py", line 68, in evaluate
+    val_loader = create_mad_dataloader(
+TypeError: create_mad_dataloader() missing 1 required positional argument: 'config'
+Logging cleanup complete

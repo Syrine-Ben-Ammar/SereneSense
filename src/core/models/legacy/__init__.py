@@ -30,10 +30,10 @@ Features:
     - Compatible with modern SereneSense training pipeline
 """
 
-from .base_legacy_model import BaseLegacyModel, LegacyModelConfig
+from .base_legacy_model import BaseLegacyModel
 from .cnn_mfcc import CNNMFCCModel
 from .crnn_mfcc import CRNNMFCCModel
-from .legacy_config import LegacyModelType
+from .legacy_config import LegacyModelConfig, LegacyModelType
 
 __all__ = [
     'BaseLegacyModel',

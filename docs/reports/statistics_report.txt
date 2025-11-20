@@ -1,0 +1,44 @@
+================================================================================
+AUDIOMAE TRAINING - STATISTICAL ANALYSIS
+================================================================================
+
+1. TRAINING OVERVIEW
+----------------------------------------
+   Total Epochs:           100
+   Total Training Time:    0.0s (0.00 hours)
+   Average Epoch Time:     0.0s
+   Dataset:                MAD (Military Audio Detection)
+   Classes:                7
+
+2. LOSS ANALYSIS
+----------------------------------------
+   Training Loss:
+      Initial:   0.0000
+      Final:     0.0000
+      Best:      0.0000
+      Mean:      0.0000
+      Std Dev:   0.0000
+
+3. ACCURACY ANALYSIS
+----------------------------------------
+   Training Accuracy:
+      Initial:   0.00%
+      Final:     0.00%
+      Best:      0.00%
+      Mean:      0.00%
+
+4. GENERALIZATION ANALYSIS
+----------------------------------------
+
+5. LEARNING RATE SCHEDULE
+----------------------------------------
+   Initial LR:    3.52e-05
+   Final LR:      1.00e-06
+   Min LR:        1.00e-06
+   Max LR:        3.52e-05
+
+6. PERFORMANCE IMPROVEMENT
+----------------------------------------
+   Training Acc:      +0.00%
+
+================================================================================

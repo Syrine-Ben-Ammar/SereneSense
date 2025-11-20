@@ -32,24 +32,51 @@ import json
 import torch
 import torch.nn as nn
 import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
 import numpy as np
 
-# Add project root to path
+# Add src to path
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(project_root / "src"))
 
 from core.training.trainer import SereneSenseTrainer, TrainingConfig
-from core.models.audioMAE.model import AudioMAE
-from core.models.AST.model import ASTModel
-from core.models.BEATs.model import BEATsModel
+from core.models.audioMAE.model import AudioMAE, AudioMAEConfig
+try:
+    from core.models.ast.model import ASTModel
+except ImportError:
+    ASTModel = None
+try:
+    from core.models.beats.model import BEATsModel
+except ImportError:
+    BEATsModel = None
 from core.data.loaders.mad_loader import MADDataset
-from core.data.loaders.audioset_loader import AudioSetLoader
 from core.utils.config_parser import ConfigParser
-from core.utils.device_utils import get_optimal_device, setup_distributed_training
+from core.utils.device_utils import get_optimal_device
 from core.utils.logging import setup_logging
 
 logger = logging.getLogger(__name__)
+
+
+class SpectrogramResizeTransform:
+    """Wrapper to resize spectrograms to fixed size"""
+    def __init__(self, spec_transform, target_size=(128, 128)):
+        self.spec_transform = spec_transform
+        self.target_size = target_size
+
+    def __call__(self, audio):
+        import torch.nn.functional as F
+        # Generate spectrogram
+        spec = self.spec_transform(audio)  # [C, H, W]
+
+        # Resize to target size
+        if spec.shape[-2:] != self.target_size:
+            spec = F.interpolate(
+                spec.unsqueeze(0),  # [1, C, H, W]
+                size=self.target_size,
+                mode='bilinear',
+                align_corners=False
+            ).squeeze(0)  # [C, H, W]
+
+        return spec
 
 
 def parse_arguments():
@@ -192,11 +219,12 @@ def load_configuration(args):
         "distributed": args.distributed,
     }
 
+    parser = ConfigParser()
     # Load configuration from file if provided
     if args.config:
-        file_config = ConfigParser.load_config(args.config)
+        file_config = parser.load_yaml(args.config)
         # Deep merge configurations (file config takes precedence)
-        config = ConfigParser.merge_configs(config, file_config)
+        config = parser.merge_configs(config, file_config)
 
     # Override with command line arguments (highest precedence)
     if args.experiment_name:
@@ -215,36 +243,71 @@ def create_model(config):
     Returns:
         PyTorch model instance
     """
-    model_type = config["model"]["architecture"].lower()
-    num_classes = config["model"]["num_classes"]
+    model_cfg = config["model"]
+    arch_cfg = model_cfg.get("architecture", {})
+    model_type = model_cfg.get("name", model_cfg.get("type", "audioMAE"))
+    if isinstance(model_type, dict):
+        model_type = model_type.get("name", "audioMAE")
+    model_type = model_type.lower()
+
+    classification_cfg = model_cfg.get("classification", {})
+    num_classes = classification_cfg.get("num_classes", model_cfg.get("num_classes", 7))
 
     logger.info(f"Creating {model_type} model with {num_classes} classes")
 
-    if model_type == "audioMAE":
-        model = AudioMAE(
+    if model_type in ("audiomae", "audio_masked_autoencoder"):
+        encoder_cfg = arch_cfg.get("encoder", {})
+        masking_cfg = arch_cfg.get("masking", {})
+        decoder_cfg = arch_cfg.get("decoder", {})
+        patch_size = encoder_cfg.get("patch_size", 16)
+        if isinstance(patch_size, (list, tuple)):
+            patch_size = tuple(patch_size)
+        img_shape = model_cfg.get("input_shape", [1, 128, 128])
+        img_size = tuple(img_shape[1:]) if len(img_shape) >= 3 else (128, 128)
+        audio_cfg = AudioMAEConfig(
             num_classes=num_classes,
-            patch_size=config["model"].get("patch_size", 16),
-            embed_dim=config["model"].get("embed_dim", 768),
-            num_heads=config["model"].get("num_heads", 12),
-            num_layers=config["model"].get("num_layers", 12),
-            masking_ratio=config["model"].get("masking_ratio", 0.75),
+            img_size=img_size,
+            patch_size=patch_size[0] if isinstance(patch_size, tuple) else patch_size,
+            in_chans=encoder_cfg.get("in_channels", 1),
+            embed_dim=encoder_cfg.get("embed_dim", 768),
+            encoder_depth=encoder_cfg.get("depth", 12),
+            encoder_num_heads=encoder_cfg.get("num_heads", 12),
+            decoder_embed_dim=decoder_cfg.get("embed_dim", 512),
+            decoder_depth=decoder_cfg.get("depth", 8),
+            decoder_num_heads=decoder_cfg.get("num_heads", 16),
+            mlp_ratio=encoder_cfg.get("mlp_ratio", 4.0),
+            dropout=encoder_cfg.get("dropout", 0.0),
+            attention_dropout=encoder_cfg.get("attention_dropout", 0.0),
+            drop_path=encoder_cfg.get("drop_path", 0.1),
+            mask_ratio=masking_cfg.get("mask_ratio", 0.75),
+            norm_pix_loss=model_cfg.get("pretraining", {}).get("norm_pix_loss", True),
         )
+        model = AudioMAE(audio_cfg)
 
     elif model_type == "ast":
+        if ASTModel is None:
+            raise ImportError("ASTModel is not available. Install or implement core.models.ast.model.")
+        encoder_cfg = arch_cfg.get("encoder", {})
+        patch_size = encoder_cfg.get("patch_size", 16)
+        if isinstance(patch_size, (list, tuple)):
+            patch_size = tuple(patch_size)
         model = ASTModel(
             num_classes=num_classes,
-            patch_size=config["model"].get("patch_size", 16),
-            embed_dim=config["model"].get("embed_dim", 768),
-            num_heads=config["model"].get("num_heads", 12),
-            num_layers=config["model"].get("num_layers", 12),
+            patch_size=patch_size,
+            embed_dim=encoder_cfg.get("embed_dim", 768),
+            num_heads=encoder_cfg.get("num_heads", 12),
+            num_layers=encoder_cfg.get("depth", 12),
         )
 
     elif model_type == "beats":
+        if BEATsModel is None:
+            raise ImportError("BEATsModel is not available. Install or implement core.models.beats.model.")
+        encoder_cfg = arch_cfg.get("encoder", {})
         model = BEATsModel(
             num_classes=num_classes,
-            embed_dim=config["model"].get("embed_dim", 768),
-            num_heads=config["model"].get("num_heads", 12),
-            num_layers=config["model"].get("num_layers", 12),
+            embed_dim=encoder_cfg.get("embed_dim", 768),
+            num_heads=encoder_cfg.get("num_heads", 12),
+            num_layers=encoder_cfg.get("depth", 12),
         )
 
     else:
@@ -264,38 +327,46 @@ def create_datasets(config):
         Tuple of (train_dataset, val_dataset)
     """
     dataset_type = config["data"]["dataset"]
-    data_dir = config["data"]["data_dir"]
+    data_dir = config["data"].get("data_dir", "data/processed/mad")
 
     logger.info(f"Creating {dataset_type} datasets from {data_dir}")
 
+    # Create spectrogram transform
+    from core.data.preprocessing.spectrograms import MelSpectrogramGenerator
+
+    # Get audio config from model config
+    audio_config = config.get("model", {}).get("audio", {})
+    spec_config = audio_config.get("spectrogram", {})
+
+    mel_spec_transform = MelSpectrogramGenerator(
+        sample_rate=audio_config.get("sample_rate", 16000),
+        n_fft=spec_config.get("n_fft", 1024),
+        hop_length=spec_config.get("hop_length", 160),
+        n_mels=spec_config.get("n_mels", 128),
+        fmin=spec_config.get("f_min", 50),
+        fmax=spec_config.get("f_max", 8000),
+        power=spec_config.get("power", 2.0),
+        normalized=True,
+        use_gpu=False  # Don't use GPU in dataset transform (pin_memory issue)
+    )
+
+    # Wrap with resize transform
+    transform = SpectrogramResizeTransform(mel_spec_transform, target_size=(128, 128))
+
     if dataset_type == "mad":
         train_dataset = MADDataset(
-            data_dir=data_dir, split="train", transform=config["data"].get("train_transform")
+            data_dir=data_dir,
+            split="train",
+            transform=transform
         )
         val_dataset = MADDataset(
-            data_dir=data_dir, split="val", transform=config["data"].get("val_transform")
+            data_dir=data_dir,
+            split="val",
+            transform=transform
         )
 
-    elif dataset_type == "audioset":
-        loader = AudioSetLoader(data_dir)
-        train_dataset = loader.get_dataset(split="train")
-        val_dataset = loader.get_dataset(split="val")
-
-    elif dataset_type == "combined":
-        # Combine MAD and AudioSet datasets
-        mad_train = MADDataset(data_dir, split="train")
-        audioset_train = AudioSetLoader(data_dir).get_dataset(split="train")
-
-        # Create combined dataset
-        from torch.utils.data import ConcatDataset
-
-        train_dataset = ConcatDataset([mad_train, audioset_train])
-
-        # Use MAD validation set
-        val_dataset = MADDataset(data_dir, split="val")
-
     else:
-        raise ValueError(f"Unknown dataset: {dataset_type}")
+        raise ValueError(f"Dataset '{dataset_type}' not supported for this training run.")
 
     logger.info(f"Training dataset size: {len(train_dataset)}")
     logger.info(f"Validation dataset size: {len(val_dataset)}")
@@ -364,24 +435,27 @@ def main():
     # Parse arguments
     args = parse_arguments()
 
-    # Setup logging
+    # Setup logging - always enable console output
     log_level = getattr(logging, args.log_level.upper())
-    setup_logging(level=log_level, debug=args.debug)
+    setup_logging(level=args.log_level, console_output=True, file_output=True)
 
-    logger.info("🚀 Starting SereneSense model training")
+    logger.info("Starting SereneSense model training")
     logger.info(f"Arguments: {vars(args)}")
 
     # Load configuration
     config = load_configuration(args)
     logger.info(f"Configuration loaded: {json.dumps(config, indent=2, default=str)}")
 
-    # Setup distributed training if requested
+    # Distributed training not supported in this lightweight run
     if args.distributed:
-        setup_distributed_training(args.local_rank)
-        logger.info(f"Distributed training setup complete (rank {args.local_rank})")
+        raise NotImplementedError("Distributed training is currently disabled for train_model.py")
 
     # Determine device
-    device = get_optimal_device(args.device)
+    if args.device and args.device.lower() != "auto":
+        device_str = args.device
+    else:
+        device_str = get_optimal_device(task="training")
+    device = torch.device(device_str)
     logger.info(f"Using device: {device}")
 
     # Create output directory
@@ -394,32 +468,6 @@ def main():
         json.dump(config, f, indent=2, default=str)
 
     try:
-        # Create model
-        model = create_model(config)
-        logger.info(f"Model created: {model.__class__.__name__}")
-
-        # Load pretrained weights if specified
-        if args.pretrained:
-            logger.info(f"Loading pretrained weights from {args.pretrained}")
-            pretrained_state = torch.load(args.pretrained, map_location="cpu")
-            model.load_state_dict(pretrained_state, strict=False)
-
-        # Move model to device
-        model = model.to(device)
-
-        # Compile model if requested (PyTorch 2.0+)
-        if args.compile_model:
-            try:
-                model = torch.compile(model)
-                logger.info("Model compiled with torch.compile")
-            except Exception as e:
-                logger.warning(f"Model compilation failed: {e}")
-
-        # Setup distributed data parallel if needed
-        if args.distributed:
-            model = DDP(model, device_ids=[args.local_rank])
-            logger.info("Model wrapped with DistributedDataParallel")
-
         # Create datasets
         train_dataset, val_dataset = create_datasets(config)
 
@@ -427,42 +475,61 @@ def main():
         setup_experiment_tracking(config, args)
 
         # Create training configuration
+        # Determine model type from config
+        model_type = config["model"].get("type", config["model"].get("name", "audioMAE")).lower()
+        # Map config type to trainer expected types
+        if "audiomae" in model_type or "audio_masked" in model_type:
+            model_type = "audiomae"
+        elif "ast" in model_type or "audio_spectrogram" in model_type:
+            model_type = "ast"
+        elif "beats" in model_type:
+            model_type = "beats"
+
         training_config = TrainingConfig(
+            model_type=model_type,
+            model_config_path=args.config,
+            pretrained_path=args.pretrained,
             epochs=config["training"]["epochs"],
             batch_size=config["training"]["batch_size"],
             learning_rate=config["training"]["learning_rate"],
             weight_decay=config["training"]["weight_decay"],
-            device=device,
-            output_dir=str(output_dir),
-            save_interval=config["output"]["save_interval"],
-            val_interval=config["output"]["val_interval"],
+            save_dir=str(output_dir),
+            save_every_n_epochs=config["output"]["save_interval"],
+            validate_every_n_epochs=config["output"]["val_interval"],
             mixed_precision=config["training"]["mixed_precision"],
-            early_stopping_patience=config["training"].get("early_stopping_patience"),
+            early_stopping=False,  # Disable early stopping to train full epochs
+            patience=config["training"].get("early_stopping_patience", 15),
             num_workers=config["data"]["num_workers"],
             pin_memory=config["data"]["pin_memory"],
-            distributed=args.distributed,
         )
 
         # Create trainer
         trainer = SereneSenseTrainer(training_config)
 
-        # Setup datasets
-        trainer.setup_data(train_dataset, val_dataset)
+        # Create data loaders
+        from torch.utils.data import DataLoader
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=config["training"]["batch_size"],
+            shuffle=True,
+            num_workers=config["data"]["num_workers"],
+            pin_memory=config["data"]["pin_memory"],
+        )
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=config["training"].get("validation_batch_size", config["training"]["batch_size"]),
+            shuffle=False,
+            num_workers=config["data"]["num_workers"],
+            pin_memory=config["data"]["pin_memory"],
+        )
+
+        # Setup training with dataloaders
+        trainer.setup_training(train_loader, val_loader)
 
         # Resume from checkpoint if specified
-        start_epoch = 0
         if args.resume:
             logger.info(f"Resuming training from {args.resume}")
-            checkpoint = torch.load(args.resume, map_location=device)
-
-            # Load model state
-            if args.distributed:
-                model.module.load_state_dict(checkpoint["model_state_dict"])
-            else:
-                model.load_state_dict(checkpoint["model_state_dict"])
-
-            start_epoch = checkpoint["epoch"] + 1
-            logger.info(f"Resumed from epoch {start_epoch}")
+            training_config.resume_from_checkpoint = args.resume
 
         # Dry run mode (for testing)
         if args.dry_run:
@@ -474,30 +541,19 @@ def main():
 
         # Performance profiling if requested
         if args.profile:
-            with torch.profiler.profile(
-                schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
-                on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    str(output_dir / "profiler")
-                ),
-                record_shapes=True,
-                profile_memory=True,
-                with_stack=True,
-            ) as prof:
-                trainer.train(model, start_epoch=start_epoch, profiler=prof)
-        else:
-            trainer.train(model, start_epoch=start_epoch)
+            logger.warning("Profiling is not yet integrated with the trainer")
+
+        # Train the model (trainer manages the model internally)
+        trainer.train()
 
         # Training completed
         logger.info("✅ Training completed successfully!")
 
-        # Save final model
-        final_model_path = output_dir / "final_model.pth"
-        if args.distributed:
-            torch.save(model.module.state_dict(), final_model_path)
-        else:
-            torch.save(model.state_dict(), final_model_path)
-
-        logger.info(f"Final model saved to: {final_model_path}")
+        # Final model is saved automatically by trainer
+        if trainer.state.best_checkpoint_path:
+            logger.info(f"Best model saved to: {trainer.state.best_checkpoint_path}")
+        if trainer.state.last_checkpoint_path:
+            logger.info(f"Last checkpoint saved to: {trainer.state.last_checkpoint_path}")
 
         # Close experiment tracking
         if args.wandb:

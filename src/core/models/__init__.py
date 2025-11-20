@@ -74,14 +74,14 @@ except ImportError as e:
 # BEATs Models
 try:
     from .beats import (
-        BEATs,
+        BEATsModel,
         BEATsConfig,
         BEATsTokenizer,
         BEATsPretrainer,
         create_beats_model
     )
 except ImportError as e:
-    BEATs = None
+    BEATsModel = None
     BEATsConfig = None
     BEATsTokenizer = None
     BEATsPretrainer = None
@@ -138,9 +138,9 @@ if AudioSpectrogramTransformer is not None:
         'recommended_for': ['spectrogram_classification', 'attention_analysis', 'interpretability']
     }
 
-if BEATs is not None:
+if BEATsModel is not None:
     AVAILABLE_MODELS['beats'] = {
-        'class': BEATs,
+        'class': BEATsModel,
         'config_class': BEATsConfig,
         'create_function': create_beats_model,
         'description': 'Bidirectional encoder with acoustic tokenization',
@@ -449,7 +449,7 @@ __all__ = [
     'create_ast_model',
 
     # BEATs
-    'BEATs',
+    'BEATsModel',
     'BEATsConfig',
     'BEATsTokenizer',
     'BEATsPretrainer',

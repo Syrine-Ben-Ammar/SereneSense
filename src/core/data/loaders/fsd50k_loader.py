@@ -788,3 +788,7 @@ def create_fsd50k_dataloader(
             'metadata': [item['metadata'] for item in batch]
         }
     )
+
+
+# Backward compatibility alias
+FSD50KDataLoader = FSD50KDataModule

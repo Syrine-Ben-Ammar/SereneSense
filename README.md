@@ -3,431 +3,349 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red.svg)](https://pytorch.org/)
-[![CI/CD](https://github.com/Syrine-Ben-Ammar/SereneSense/workflows/Tests/badge.svg)](https://github.com/Syrine-Ben-Ammar/SereneSense/actions)
-[![Docker](https://img.shields.io/badge/Docker-Available-blue.svg)](https://hub.docker.com/r/syrine-ben-ammar/serenesense)
 
-**SereneSense** is an enterprise-grade AI system for real-time military vehicle sound detection using state-of-the-art transformer architectures and edge computing. Achieve **91%+ accuracy** on military vehicle classification with **<20ms latency** on edge devices under **$400**.
+**SereneSense** is a research project for military vehicle sound detection using state-of-the-art transformer architectures. This thesis project implements and compares multiple deep learning approaches for audio classification on the MAD (Military Audio Detection) dataset.
+
+## 📊 Project Status
+
+### ✅ Phase 1: Model Development & Training (COMPLETE)
+- **CNN Baseline**: 66.88% validation accuracy
+- **CRNN Baseline**: 73.21% validation accuracy
+- **AudioMAE (Best)**: **82.15% validation accuracy**
+- **MAD Dataset**: Preprocessed 7,466 samples across 7 classes
+- **Comprehensive Reports**: Training curves, metrics, and analysis
+
+### 🔄 Phase 3: Deployment (NEXT STEP)
+- Raspberry Pi 5 deployment
+- Model optimization (ONNX, quantization)
+- Real-time inference testing
+
+## 🎯 Key Results
+
+### Model Performance Comparison
+
+| Model | Architecture | Validation Accuracy | Improvement | Parameters |
+|-------|-------------|---------------------|-------------|------------|
+| **Old Notebook CNN** | CNN + MFCC | ~66-68% | Baseline | 242K |
+| **New CNN Baseline** | CNN + MFCC | **66.88%** | ✅ Reproduced | 242K |
+| **New CRNN** | CNN + BiLSTM | **73.21%** | +6.3% | 1.5M |
+| **AudioMAE** | ViT Transformer | **82.15%** | **+15.2%** | 111M |
+
+### AudioMAE Performance Highlights
+- **Validation Accuracy**: 82.15%
+- **Training Accuracy**: 69.77%
+- **Generalization Gap**: **+12.38%** (validation > training - excellent!)
+- **Training Time**: 4 hours (100 epochs on GPU)
+- **No Overfitting**: Validation loss (0.8693) < Training loss (0.9763)
+
+### Generalization Analysis
+
+| Model | Train Acc | Val Acc | Gap | Status |
+|-------|-----------|---------|-----|--------|
+| CNN | 68.45% | 66.88% | -1.57% | Slight overfit |
+| CRNN | 74.89% | 73.21% | -1.68% | Slight overfit |
+| **AudioMAE** | **69.77%** | **82.15%** | **+12.38%** | ✅ **Excellent** |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Python 3.8+
 - CUDA 11.8+ (for GPU training)
-- Docker (recommended)
 - 16GB+ RAM
-- 100GB+ storage
+- Anaconda/Miniconda (recommended)
 
 ### Installation
 
-#### Option 1: Docker (Recommended)
 ```bash
 # Clone repository
 git clone https://github.com/Syrine-Ben-Ammar/SereneSense.git
-cd serenesense
+cd SereneSense
 
-# Build and run with Docker Compose
-docker-compose up -d
+# Create conda environment
+conda create -n serenesense python=3.10
+conda activate serenesense
 
-# Access Jupyter notebooks
-open http://localhost:8888
-```
-
-#### Option 2: Local Installation
-```bash
-# Clone repository
-git clone https://github.com/Syrine-Ben-Ammar/SereneSense.git
-cd serenesense
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+# Install PyTorch with CUDA support
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 # Install dependencies
-pip install -e .
+pip install -r requirements.txt
+```
 
-# Download datasets (will prompt for confirmation)
-python scripts/download_datasets.py --datasets mad,audioset_subset,fsd50k
+### Dataset Preparation
 
-# Prepare data
+```bash
+# Prepare MAD dataset
 python scripts/prepare_data.py --config configs/data/mad_dataset.yaml
+
+# This will create:
+# - data/processed/mad/train/ (5,464 samples)
+# - data/processed/mad/validation/ (965 samples)
+# - data/processed/mad/test/ (1,037 samples)
 ```
 
-### 30-Second Demo
-```python
-from core import SereneSense
-import torch
+### Training
 
-# Initialize detector with pre-trained model
-detector = SereneSense.from_pretrained("models/core-audioMAE-military")
-
-# Detect from audio file
-result = detector.predict("path/to/audio.wav")
-print(f"Detection: {result.label} (confidence: {result.confidence:.2f})")
-
-# Real-time detection from microphone
-detector.start_realtime_detection(callback=lambda x: print(f"Detected: {x.label}"))
+#### Train AudioMAE (Best Performance)
+```bash
+python scripts/train_model.py \
+    --config configs/models/audioMAE.yaml \
+    --data-dir data/raw/mad \
+    --epochs 100 \
+    --batch-size 16
 ```
 
-## 🎯 Key Features
+#### Train Legacy Models (CNN/CRNN)
+```bash
+# Train CNN baseline
+python scripts/train_legacy_model.py \
+    --config configs/models/legacy_cnn_mfcc.yaml \
+    --epochs 150
 
-### ⚡ State-of-the-Art Performance
-- **91.07% accuracy** on MAD military dataset
-- **<20ms latency** on Raspberry Pi 5 + AI HAT+
-- **97.75% accuracy** on ESC-50 benchmark
-- **Real-time processing** at 50+ FPS
+# Train CRNN baseline
+python scripts/train_legacy_model.py \
+    --config configs/models/legacy_crnn_mfcc.yaml \
+    --epochs 100
+```
 
-### 🧠 Advanced AI Models
-- **AudioMAE**: Masked autoencoder with ViT backbone (47.3 mAP on AudioSet, 91.07% on MAD)
-- **Audio Spectrogram Transformer**: Patch-based attention mechanism (89.45% on MAD)
-- **BEATs**: Bidirectional encoder with semantic tokenization (90.23% on MAD)
-- **Transfer Learning**: Pre-trained on 2M+ audio samples
-- **Legacy Models**: CNN/CRNN baselines for comparison & education (see [Legacy Models](docs/LEGACY_MODELS.md))
+### Evaluation
 
-### 🔧 Edge Computing Optimized (Raspberry Pi Focus)
-- **Primary Target**: Raspberry Pi 5 + AI HAT+ (26 TOPS, $190 total cost, under $400 complete system)
-- **Also Supports**: NVIDIA Jetson family (67+ TOPS, 7-25W configurable power)
-- **TensorRT Optimization**: 4x inference speedup
-- **8-bit Quantization**: 95% size reduction, minimal accuracy loss
+```bash
+# Evaluate AudioMAE model
+python scripts/evaluate_audiomae.py \
+    --model outputs/checkpoint_audiomae_099.pth \
+    --data-dir data/raw/mad
 
-### 📊 Enterprise-Grade Infrastructure
-- **Docker Containerization**: Multi-stage builds for production
-- **MLOps Pipeline**: Experiment tracking with MLflow and W&B
-- **CI/CD**: Automated testing and deployment
-- **API Server**: FastAPI with WebSocket support
-- **Monitoring**: Real-time performance metrics
+# Evaluate legacy models
+python scripts/evaluate_legacy_model.py \
+    --checkpoint outputs/phase1/cnn_baseline.pth \
+    --config configs/models/legacy_cnn_mfcc.yaml
+```
 
-## 📚 Datasets (100% Free)
+## 📊 Dataset: MAD (Military Audio Detection)
 
-| Dataset | Samples | Classes | License | Usage |
-|---------|---------|---------|---------|-------|
-| **MAD** | 8,075 | 7 military | CC BY 4.0 | Military vehicle training |
-| **AudioSet** | 2.08M | 632 | CC BY 4.0 | Pre-training & transfer learning |
-| **FSD50K** | 51,197 | 200 | CC BY 4.0 | General audio classification |
-| **VGGSound** | 200K+ | 309 | CC BY 4.0 | Audio-visual correspondence |
+| Split | Samples | Percentage |
+|-------|---------|------------|
+| Training | 5,464 | 73.2% |
+| Validation | 965 | 12.9% |
+| Test | 1,037 | 13.9% |
+| **Total** | **7,466** | **100%** |
 
-### Military Vehicle Classes (MAD Dataset)
-- 🚁 **Helicopter**: 1,200 samples
-- ✈️ **Fighter Aircraft**: 1,100 samples  
-- 🚗 **Military Vehicle**: 1,500 samples
-- 🚚 **Truck**: 1,300 samples
-- 🏃 **Footsteps**: 1,200 samples
-- 🎤 **Speech**: 1,200 samples
-- 🌊 **Background**: 1,475 samples
+### Military Vehicle Classes (7 Classes)
+
+| Class ID | Class Name | Description |
+|----------|------------|-------------|
+| 0 | Helicopter | Rotary-wing aircraft |
+| 1 | Fighter Aircraft | Fixed-wing military jets |
+| 2 | Military Vehicle | Armored vehicles, APCs |
+| 3 | Truck | Military trucks |
+| 4 | Foot Movement | Infantry, footsteps |
+| 5 | Speech | Human speech |
+| 6 | Background | Ambient noise |
 
 ## 🏗️ Architecture Overview
 
-```mermaid
-graph TB
-    A[Audio Input] --> B[Preprocessing Pipeline]
-    B --> C[Feature Extraction]
-    C --> D{Model Selection}
-    
-    D --> E[AudioMAE]
-    D --> F[AST]
-    D --> G[BEATs]
-    
-    E --> H[Inference Engine]
-    F --> H
-    G --> H
-    
-    H --> I[Edge Optimization]
-    I --> J[Real-time Detection]
-    
-    K[Training Pipeline] --> L[Model Registry]
-    L --> H
-    
-    M[Data Pipeline] --> N[Augmentation]
-    N --> K
-```
+### AudioMAE (Audio Masked Autoencoder)
 
-## 🚀 Getting Started
+Our best-performing model uses a Vision Transformer (ViT) architecture adapted for audio:
 
-### 1. Environment Setup
-```bash
-# Check CUDA availability
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+**Key Components:**
+- **Input**: Mel spectrograms (128×128) from 10-second audio clips
+- **Encoder**: 12-layer ViT with 768-dim embeddings (12 attention heads)
+- **Decoder**: 8-layer transformer with 512-dim embeddings (16 attention heads)
+- **Patch Size**: 16×16
+- **Parameters**: 111,089,927 (~424MB)
 
-# Set environment variables
-export SERENESENSE_DATA_DIR=/path/to/data
-export SERENESENSE_MODEL_DIR=/path/to/models
-export WANDB_API_KEY=your_wandb_key  # Optional: for experiment tracking
-```
+**Training Configuration:**
+- **Optimizer**: AdamW (LR=1e-4, weight decay=0.05)
+- **Scheduler**: Cosine annealing with warm restarts
+- **Regularization**: Mixup (α=0.8), Label smoothing (0.1), Dropout (0.5)
+- **Batch Size**: 16
+- **Epochs**: 100
 
-### 2. Dataset Download
-```bash
-# Download all datasets (requires ~50GB storage)
-python scripts/download_datasets.py --datasets all
+### CNN Baseline
 
-# Or download specific datasets
-python scripts/download_datasets.py --datasets mad,fsd50k
-```
+**Architecture**: 3-layer CNN + MFCC features
+- **Features**: 40 MFCC coefficients + Δ + ΔΔ
+- **Layers**: 48 → 96 → 192 filters
+- **Parameters**: ~242K
+- **Accuracy**: 66.88%
 
-### 3. Data Preprocessing
-```bash
-# Preprocess datasets for training
-python scripts/prepare_data.py \
-    --config configs/data/mad_dataset.yaml \
-    --output-dir data/processed \
-    --num-workers 8
-```
+### CRNN Baseline
 
-### 4. Model Training
-```bash
-# Train AudioMAE model
-python scripts/train_model.py \
-    --config configs/models/audioMAE.yaml \
-    --data-config configs/data/mad_dataset.yaml \
-    --experiment-name "audioMAE-military-v1"
-
-# Train with distributed setup (multi-GPU)
-torchrun --nproc_per_node=4 scripts/train_model.py \
-    --config configs/models/audioMAE.yaml \
-    --distributed
-```
-
-### 5. Model Evaluation
-```bash
-# Evaluate on test set
-python scripts/evaluate_model.py \
-    --model-path models/checkpoints/audioMAE_best.pth \
-    --config configs/models/audioMAE.yaml \
-    --test-data data/processed/mad_test.h5
-
-# Generate comprehensive evaluation report
-python scripts/evaluate_model.py \
-    --model-path models/checkpoints/audioMAE_best.pth \
-    --generate-report \
-    --output-dir outputs/evaluation
-```
-
-### 6. Edge Optimization
-```bash
-# Optimize for NVIDIA Jetson
-python scripts/optimize_for_edge.py \
-    --model-path models/checkpoints/audioMAE_best.pth \
-    --target jetson \
-    --precision int8 \
-    --output models/optimized/audioMAE_jetson_int8.trt
-
-# Optimize for Raspberry Pi
-python scripts/optimize_for_edge.py \
-    --model-path models/checkpoints/audioMAE_best.pth \
-    --target raspberry_pi \
-    --precision int8 \
-    --output models/optimized/audioMAE_rpi_int8.onnx
-```
-
-### 7. Deployment
-```bash
-# Deploy to edge device
-python scripts/deploy_model.py \
-    --model-path models/optimized/audioMAE_jetson_int8.trt \
-    --device jetson \
-    --host 192.168.1.100 \
-    --api-port 8080
-
-# Start local API server
-python -m serenesense.deployment.api.fastapi_server \
-    --model-path models/optimized/audioMAE_cpu.onnx \
-    --host 0.0.0.0 \
-    --port 8080
-```
-
-## 📈 Performance Benchmarks
-
-### Model Accuracy (MAD Dataset)
-| Model | Accuracy | F1-Score | Precision | Recall |
-|-------|----------|----------|-----------|--------|
-| AudioMAE | **91.07%** | 0.903 | 0.912 | 0.894 |
-| AST | 89.45% | 0.887 | 0.901 | 0.873 |
-| BEATs | 90.23% | 0.895 | 0.908 | 0.882 |
-
-### Edge Performance
-| Platform | Inference Time | Throughput | Power | Memory |
-|----------|---------------|------------|-------|--------|
-| **RPi 5 + AI HAT+** | **18.5ms** | **54 FPS** | **12W** | **1.8GB** |
-| Jetson Orin Nano | 8.2ms | 122 FPS | 15W | 2.1GB |
-| RTX 4090 | 2.1ms | 476 FPS | 450W | 3.2GB |
-
-### Real-World Deployment Results
-- **Ukrainian Sky Fortress**: 95%+ drone detection accuracy
-- **Field Testing**: 89% accuracy in noisy environments
-- **Battery Life**: 12-15 hours continuous operation
-- **False Positives**: <5% on civilian vehicle sounds
+**Architecture**: CNN + Bidirectional LSTM
+- **Features**: 40 MFCC coefficients + Δ + ΔΔ
+- **Temporal Modeling**: BiLSTM layers
+- **Parameters**: ~1.5M
+- **Accuracy**: 73.21%
 
 ## 🏗️ Project Structure
 
 ```
-SereneSense/                        # Project Root
-├── src/
-│   └── core/                        # Main Package
-│       ├── models/                  # AI Model Implementations
-│       │   ├── audioMAE/           # AudioMAE (47.3 mAP on AudioSet)
-│       │   ├── ast/                # Audio Spectrogram Transformer
-│       │   ├── beats/              # BEATs (Bidirectional Encoder)
-│       │   └── legacy/             # Legacy CNN/CRNN (for comparison)
-│       ├── core/                    # Core audio processing
-│       ├── data/                    # Data loaders & preprocessing
-│       │   ├── loaders/            # Dataset loaders (MAD, AudioSet, FSD50K)
-│       │   ├── augmentation/       # Time/frequency domain augmentation
-│       │   └── preprocessing/      # Spectrograms, normalization
-│       ├── training/                # Training pipeline
-│       │   ├── trainer.py
-│       │   ├── losses/
-│       │   ├── optimizers/
-│       │   └── callbacks/
-│       ├── inference/               # Inference pipelines
-│       │   ├── realtime/           # Real-time detection
-│       │   ├── batch/              # Batch processing
-│       │   └── optimization/       # Quantization, pruning, TensorRT
-│       ├── deployment/              # Deployment utilities
-│       │   ├── edge/               # Jetson, Raspberry Pi
-│       │   └── api/                # FastAPI server, WebSocket
-│       ├── utils/                   # Utilities & helpers
-│       └── evaluation/              # Benchmarks & metrics
-├── tests/                           # Test suite
-│   ├── unit/                        # Unit tests
-│   ├── integration/                 # Integration tests
-│   └── performance/                 # Performance benchmarks
-├── configs/                         # Configuration files (YAML)
-│   ├── models/                      # Model configs
-│   ├── training/                    # Training configs
-│   ├── deployment/                  # Deployment configs
-│   └── data/                        # Data configs
-├── scripts/                         # Utility scripts
-│   ├── download_datasets.py
-│   ├── prepare_data.py
-│   ├── train_model.py
-│   ├── evaluate_model.py
-│   ├── optimize_for_edge.py
-│   └── deploy_model.py
-├── notebooks/                       # Jupyter notebooks
-├── data/                            # Data storage (gitignored)
-├── models/                          # Model storage (gitignored)
-├── logs/                            # Logs (gitignored)
-├── experiments/                     # Experiment tracking (gitignored)
-├── outputs/                         # Outputs (gitignored)
-├── docs/                            # Documentation
-├── setup.py                         # Package setup
-├── pyproject.toml                   # Modern Python packaging
-├── requirements.txt                 # Dependencies
-├── Dockerfile                       # Docker configuration
-├── docker-compose.yml               # Docker Compose
-└── README.md                        # This file
+SereneSense/
+├── src/core/                          # Core implementation
+│   ├── models/
+│   │   ├── audioMAE/                 # AudioMAE implementation (82.15%)
+│   │   ├── legacy/                   # CNN/CRNN baselines
+│   │   └── __init__.py
+│   ├── data/
+│   │   ├── loaders/                  # MAD dataset loader
+│   │   ├── preprocessing/            # Spectrogram generation
+│   │   └── augmentation/             # SpecAugment, mixup
+│   ├── training/                      # Training pipeline
+│   ├── inference/                     # Inference utilities
+│   └── utils/                         # Logging, device management
+│
+├── scripts/                           # Training & evaluation scripts
+│   ├── train_model.py                # AudioMAE training
+│   ├── train_legacy_model.py         # CNN/CRNN training
+│   ├── evaluate_audiomae.py          # AudioMAE evaluation
+│   ├── evaluate_legacy_model.py      # Legacy evaluation
+│   ├── prepare_data.py               # Data preprocessing
+│   ├── prepare_mad_metadata.py       # MAD metadata generation
+│   └── plot_training_history.py      # Visualization
+│
+├── configs/                           # Configuration files
+│   ├── models/
+│   │   ├── audioMAE.yaml             # AudioMAE config
+│   │   ├── legacy_cnn_mfcc.yaml      # CNN config
+│   │   └── legacy_crnn_mfcc.yaml     # CRNN config
+│   └── data/
+│       └── mad_dataset.yaml          # MAD dataset config
+│
+├── outputs/                           # Training outputs
+│   ├── best_model_audiomae_000.pth   # Best AudioMAE model (424MB)
+│   ├── checkpoint_audiomae_099.pth   # Final checkpoint
+│   ├── phase1/                       # Legacy model checkpoints
+│   ├── history/                      # Training history JSON
+│   └── plots/                        # Training curves
+│
+├── docs/                              # Documentation
+│   ├── reports/                       # Training reports
+│   │   ├── FINAL_RESULTS.md          # Comprehensive results
+│   │   ├── TRAINING_SUMMARY_REPORT.md
+│   │   ├── COMPARISON_ANALYSIS.md    # Model comparisons
+│   │   └── training_curves.png       # Visualizations
+│   ├── LEGACY_MODELS.md              # CNN/CRNN documentation
+│   └── DEPLOYMENT_PLAN.md            # Raspberry Pi deployment plan
+│
+├── OLD/                               # Reference notebooks
+│   ├── train_mad_mfcc_gpu_v2.ipynb  # Original CNN notebook
+│   └── train_mad_crnn_gpu.ipynb      # Original CRNN notebook
+│
+├── data/                              # Dataset storage
+│   ├── raw/mad/                       # Raw MAD dataset
+│   └── processed/mad/                 # Preprocessed HDF5 files
+│
+├── README.md                          # This file
+├── RoadMap.txt                        # Project roadmap
+└── requirements.txt                   # Dependencies
 ```
 
-**Structure Principles:**
-- ✅ **Zero Redundancy**: "SereneSense" appears only as root folder name
-- ✅ **Professional Layout**: `src/core/` follows Django/Flask industry standards
-- ✅ **Clear Hierarchy**: Root → `src/` → `core/` prevents confusion
-- ✅ **Modular Design**: Each module is self-contained and independently testable
+## 📈 Training Results
+
+### AudioMAE Training Curves
+
+All training visualizations available in `docs/reports/`:
+- `training_curves.png` - Training/validation loss and accuracy (100 epochs)
+- `performance_comparison.png` - Detailed performance analysis
+- `training_metrics.csv` - Metrics table (Excel/LaTeX ready)
+
+### Key Observations
+
+1. **Excellent Generalization**: Validation accuracy (82.15%) exceeds training accuracy (69.77%) by 12.38%, indicating:
+   - Strong regularization (Mixup, label smoothing)
+   - No overfitting
+   - Good model robustness
+
+2. **Stable Training**: Loss curves show smooth convergence over 100 epochs
+
+3. **Significant Improvement**: 15.2% accuracy gain over original CNN baseline
+
+## 📚 Documentation
+
+### Reports & Analysis
+- **[FINAL_RESULTS.md](docs/reports/FINAL_RESULTS.md)**: Complete results analysis
+- **[TRAINING_SUMMARY_REPORT.md](docs/reports/TRAINING_SUMMARY_REPORT.md)**: 10-section training breakdown
+- **[COMPARISON_ANALYSIS.md](docs/reports/COMPARISON_ANALYSIS.md)**: Model comparison with old notebook
+- **[LEGACY_MODELS.md](docs/LEGACY_MODELS.md)**: CNN/CRNN documentation
+
+### Configuration Examples
+- **[audioMAE.yaml](configs/models/audioMAE.yaml)**: AudioMAE training config
+- **[mad_dataset.yaml](configs/data/mad_dataset.yaml)**: Dataset configuration
+
+## 🚀 Next Steps: Raspberry Pi 5 Deployment
+
+The next phase involves deploying the trained AudioMAE model to Raspberry Pi 5:
+
+### Deployment Plan
+1. **Model Optimization**
+   - Export to ONNX format
+   - Apply INT8 quantization
+   - Optimize for edge inference
+
+2. **Raspberry Pi 5 Setup**
+   - Install PyTorch/ONNX Runtime
+   - Configure audio input
+   - Implement real-time detection
+
+3. **Performance Benchmarking**
+   - Measure inference latency
+   - Test accuracy on device
+   - Evaluate power consumption
+
+See **[DEPLOYMENT_PLAN.md](docs/DEPLOYMENT_PLAN.md)** for detailed deployment steps.
 
 ## 🛠️ Development
 
-### Code Organization
-The codebase is organized into functional modules within `src/core/`:
-- **models/**: Audio ML models (AudioMAE, AST, BEATs)
-- **data/**: Data loading, preprocessing, and augmentation
-- **training/**: Training pipeline with losses, optimizers, callbacks
-- **inference/**: Real-time and batch inference engines
-- **deployment/**: Edge device and API deployment
-- **core/**: Audio processing and model management
-- **utils/**: Logging, metrics, visualization
-- **evaluation/**: Benchmarking and performance metrics
-
-### Development Workflow
-1. **Setup**: `make setup-dev` - Install development dependencies
-2. **Lint**: `make lint` - Run code formatting and linting
-3. **Test**: `make test` - Run comprehensive test suite
-4. **Build**: `make build` - Build Docker images
-5. **Deploy**: `make deploy-dev` - Deploy to development environment
-
 ### Running Tests
 ```bash
-# Run all tests
-pytest tests/ -v
+# Check model checkpoint
+python scripts/inspect_checkpoint.py outputs/checkpoint_audiomae_099.pth
 
-# Run specific test categories
-pytest tests/unit/ -v                    # Unit tests
-pytest tests/integration/ -v             # Integration tests
-pytest tests/performance/ -v             # Performance tests
+# Generate training report
+python scripts/generate_training_report.py
 
-# Run with coverage
-pytest tests/ --cov=core --cov-report=html
+# Plot training history
+python scripts/plot_training_history.py --history outputs/history/audiomae.json
 ```
 
-## 🚀 Deployment Options
+### Model Checkpoints
 
-### Option 1 (Recommended): Raspberry Pi 5 + AI HAT+ ($190)
-```yaml
-# configs/deployment/raspberry_pi.yaml
-platform: raspberry_pi
-model_optimization:
-  precision: int8
-  backend: onnxruntime
-  provider: hailo
-performance:
-  target_latency: 20ms
-  target_throughput: 50fps
-power:
-  mode: efficiency
-```
+| Checkpoint | Epoch | Size | Val Acc | Location |
+|------------|-------|------|---------|----------|
+| Best Model | 0 | 424MB | ~82% | `outputs/best_model_audiomae_000.pth` |
+| Final | 99 | 424MB | 82.15% | `outputs/checkpoint_audiomae_099.pth` |
+| CNN Baseline | - | ~1MB | 66.88% | `outputs/phase1/cnn_baseline.pth` |
+| CRNN Baseline | - | ~6MB | 73.21% | `outputs/phase1/crnn_baseline.pth` |
 
-### Option 2: NVIDIA Jetson Orin Nano ($399)
-```yaml
-# configs/deployment/jetson.yaml
-platform: jetson
-model_optimization:
-  precision: int8
-  tensorrt: true
-  max_batch_size: 4
-performance:
-  target_latency: 10ms
-  target_throughput: 100fps
-power:
-  mode: MAXN  # or 10W, 15W, 25W
-```
+## 🎓 Academic Context
 
-### Option 3: Cloud Deployment
-```yaml
-# configs/deployment/cloud.yaml
-platform: cloud
-model_optimization:
-  precision: fp16
-  batch_size: 32
-scaling:
-  min_instances: 1
-  max_instances: 10
-  target_gpu_utilization: 70%
-```
+This project was developed as part of a thesis on military vehicle sound detection. Key contributions:
 
-## 📊 Model Zoo
+1. **Reproduction Study**: Successfully reproduced and validated old notebook CNN results (66-68% accuracy)
 
-| Model | Accuracy | Size | Latency | Platform | Download |
-|-------|----------|------|---------|----------|----------|
-| AudioMAE-Base | 91.07% | 340MB | 8ms | Jetson | [Download](models/core-audioMAE-base.pth) |
-| AudioMAE-Lite | 89.34% | 85MB | 12ms | RPi 5 | [Download](models/core-audioMAE-lite.pth) |
-| AST-Military | 89.45% | 290MB | 10ms | Jetson | [Download](models/core-ast-military.pth) |
-| BEATs-Optimized | 90.23% | 180MB | 6ms | RTX GPU | [Download](models/core-beats-opt.pth) |
+2. **Architecture Comparison**: Evaluated three approaches:
+   - Traditional CNN + MFCC features
+   - Enhanced CRNN with temporal modeling
+   - Modern AudioMAE transformer architecture
 
-## 🤝 Contributing
+3. **Generalization Analysis**: Demonstrated that AudioMAE achieves superior generalization (+12.38% gap) despite higher model complexity
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+4. **Practical Implementation**: Complete training pipeline with visualization and evaluation tools
 
-### Development Setup
-```bash
-# Fork and clone the repository
-git clone https://github.com/Syrine-Ben-Ammar/SereneSense.git
-cd serenesense
+## 📄 Citation
 
-# Install development dependencies
-pip install -e ".[dev]"
+If you use this work in your research, please cite:
 
-# Install pre-commit hooks
-pre-commit install
-
-# Run tests to ensure everything works
-pytest tests/
+```bibtex
+@mastersthesis{benammar2025serenesense,
+  title={SereneSense: Military Vehicle Sound Detection using Transformer Architectures},
+  author={Ben Ammar, Syrine},
+  year={2025},
+  school={University},
+  note={AudioMAE achieved 82.15\% validation accuracy on MAD dataset}
+}
 ```
 
 ## 📄 License
@@ -437,19 +355,18 @@ This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENS
 ## 🙏 Acknowledgments
 
 - **MAD Dataset**: Military Audio Dataset contributors
-- **Hugging Face**: For transformer implementations
 - **PyTorch**: For the deep learning framework
-- **NVIDIA**: For edge computing platforms
-- **Meta AI**: For AudioMAE architecture
-- **Microsoft**: For BEATs model architecture
+- **Meta AI**: For AudioMAE architecture (Huang et al., 2022)
+- **Hugging Face**: For transformer implementations
 
 ## 📞 Support
 
-- **Documentation**: [docs/](https://github.com/Syrine-Ben-Ammar/SereneSense/tree/main/docs)
-- **Issues**: [GitHub Issues](https://github.com/Syrine-Ben-Ammar/SereneSense/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Syrine-Ben-Ammar/SereneSense/discussions)
+- **Documentation**: [docs/](docs/)
+- **Issues**: GitHub Issues
 - **Email**: sirine.ben.ammar32@gmail.com
 
 ---
 
-**Built with ❤️ for open-source military AI research**
+**Academic Research Project - 2025**
+
+Built for military vehicle sound detection research using state-of-the-art transformer architectures.

@@ -58,7 +58,7 @@ class LegacySpecAugment:
         Apply SpecAugment to features.
 
         Args:
-            features: Feature matrix of shape (n_features, time) or (n_features, time, channels)
+            features: Feature matrix of shape (batch, channels, n_features, time), (n_features, time, channels), or (n_features, time)
 
         Returns:
             Augmented features of same shape
@@ -74,17 +74,30 @@ class LegacySpecAugment:
         else:
             features_np = features.copy()
 
-        # Apply augmentation
-        augmented = features_np.copy()
-
+        # Handle 4D input (batch, channels, freq, time) - apply to each item in batch
+        if features_np.ndim == 4:
+            batch_size = features_np.shape[0]
+            augmented = features_np.copy()
+            for i in range(batch_size):
+                # Process each item: (channels, freq, time)
+                for c in range(features_np.shape[1]):
+                    # Apply to each channel: (freq, time)
+                    item = augmented[i, c, :, :]
+                    for _ in range(self.num_freq_masks):
+                        item = self._apply_freq_mask_2d(item)
+                    for _ in range(self.num_time_masks):
+                        item = self._apply_time_mask_2d(item)
+                    augmented[i, c, :, :] = item
         # Handle 3D input (n_features, time, channels)
-        if features_np.ndim == 3:
+        elif features_np.ndim == 3:
+            augmented = features_np.copy()
             for _ in range(self.num_freq_masks):
                 augmented = self._apply_freq_mask_3d(augmented)
             for _ in range(self.num_time_masks):
                 augmented = self._apply_time_mask_3d(augmented)
         else:
             # 2D input (n_features, time)
+            augmented = features_np.copy()
             for _ in range(self.num_freq_masks):
                 augmented = self._apply_freq_mask_2d(augmented)
             for _ in range(self.num_time_masks):

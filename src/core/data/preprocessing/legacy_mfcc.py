@@ -11,9 +11,6 @@ Provides handcrafted features: MFCC + delta + delta-delta
 import numpy as np
 import librosa
 from typing import Optional, Tuple
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class MFCCExtractor:
@@ -30,7 +27,7 @@ class MFCCExtractor:
         f_max: Optional[float] = None,
         use_deltas: bool = True,
         use_delta_deltas: bool = True,
-        delta_window: int = 2,
+        delta_window: int = 3,
         normalize: bool = True,
         normalization_type: str = "zscore",
     ):
@@ -60,7 +57,10 @@ class MFCCExtractor:
         self.f_max = f_max or sample_rate // 2
         self.use_deltas = use_deltas
         self.use_delta_deltas = use_delta_deltas
-        self.delta_window = delta_window
+        sanitized_window = max(3, delta_window)
+        if sanitized_window % 2 == 0:
+            sanitized_window += 1
+        self.delta_window = sanitized_window
         self.normalize = normalize
         self.normalization_type = normalization_type
 
@@ -219,13 +219,6 @@ class LegacyMFCCPreprocessor:
         self.use_deltas = use_deltas
         self.use_delta_deltas = use_delta_deltas
 
-        # Compute target shape
-        n_frames = librosa.util.frame_length(
-            n_fft, hop_length, duration * sample_rate
-        )
-        n_features = n_mfcc * (1 + use_deltas + use_delta_deltas)
-        self.target_shape = (n_features, n_frames)
-
         # Initialize extractor
         self.extractor = MFCCExtractor(
             sample_rate=sample_rate,
@@ -237,6 +230,11 @@ class LegacyMFCCPreprocessor:
             use_delta_deltas=use_delta_deltas,
             normalize=normalize,
         )
+
+        # Compute target shape dynamically using a dummy signal
+        dummy_audio = np.zeros(self.n_samples, dtype=np.float32)
+        dummy_features = self.extractor.extract(dummy_audio)
+        self.target_shape = dummy_features.shape
 
     def process_audio(self, audio: np.ndarray) -> np.ndarray:
         """

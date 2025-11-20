@@ -34,7 +34,7 @@ class MFCCConfig:
     # MFCC-specific
     use_deltas: bool = True  # Include delta (velocity) features
     use_delta_deltas: bool = True  # Include delta-delta (acceleration) features
-    delta_window: int = 2  # Window for computing delta features
+    delta_window: int = 3  # Window for computing delta features (must be odd >=3)
 
     # Normalization
     normalize: bool = True  # Normalize MFCC features per coefficient
@@ -56,6 +56,10 @@ class MFCCConfig:
             raise ValueError("hop_length must be positive")
         if self.sample_rate <= 0:
             raise ValueError("sample_rate must be positive")
+        if self.delta_window < 3:
+            self.delta_window = 3
+        if self.delta_window % 2 == 0:
+            self.delta_window += 1
 
 
 @dataclass

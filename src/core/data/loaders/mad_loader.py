@@ -440,31 +440,35 @@ class MADDataset(torch.utils.data.Dataset):
         """Return number of samples in dataset."""
         return len(self._file_list)
     
-    def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
+    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
         """
         Get a sample from the dataset.
-        
+
         Args:
             index: Sample index
-            
+
         Returns:
-            Tuple of (audio_tensor, label)
+            Dictionary with 'spectrograms' and 'labels' keys for trainer compatibility
         """
         # Get file path and label
         file_path = self._file_list[index]
         label = self._labels[index]
-        
+
         # Load audio
         audio = self._load_audio(file_path, index)
-        
+
         # Apply transforms
         if self.transform is not None:
             audio = self.transform(audio)
-        
+
         if self.target_transform is not None:
             label = self.target_transform(label)
-        
-        return audio, label
+
+        # Return as dictionary for trainer compatibility
+        return {
+            'spectrograms': audio,
+            'labels': torch.tensor(label, dtype=torch.long) if not isinstance(label, torch.Tensor) else label
+        }
     
     def _load_audio(self, file_path: Path, index: int) -> torch.Tensor:
         """
@@ -732,23 +736,23 @@ def create_mad_loaders(data_dir: str,
 def analyze_mad_dataset(data_dir: str) -> Dict[str, Any]:
     """
     Analyze MAD dataset and return comprehensive statistics.
-    
+
     Args:
         data_dir: Path to MAD dataset
-        
+
     Returns:
         Dictionary containing analysis results
     """
     try:
         # Load full dataset
         dataset = MADDataset(data_dir, split="all")
-        
+
         analysis = {
             "total_samples": len(dataset),
             "class_distribution": dataset.get_class_distribution(),
             "split_info": {}
         }
-        
+
         # Analyze each split
         for split in ["train", "val", "test"]:
             try:
@@ -759,9 +763,329 @@ def analyze_mad_dataset(data_dir: str) -> Dict[str, Any]:
                 }
             except Exception as e:
                 logger.warning(f"Could not analyze split {split}: {e}")
-        
+
         return analysis
-        
+
     except Exception as e:
         logger.error(f"Dataset analysis failed: {e}")
         return {"error": str(e)}
+
+
+# Configuration and DataModule classes
+from dataclasses import dataclass, field
+
+@dataclass
+class MADConfig:
+    """
+    Configuration for MAD dataset loading and processing.
+
+    This dataclass encapsulates all configuration parameters for MAD dataset
+    to ensure consistent and reproducible data loading across the project.
+    """
+
+    # Data paths
+    data_dir: str
+
+    # Split configuration
+    split: str = "train"  # "train", "val", "test", or "all"
+    split_ratios: Dict[str, float] = field(default_factory=lambda: {
+        "train": 0.7,
+        "val": 0.15,
+        "test": 0.15
+    })
+    random_state: int = 42
+
+    # Audio processing
+    sample_rate: int = 16000
+    duration: Optional[float] = None  # None for full audio, or fixed duration in seconds
+    target_length: Optional[int] = None  # Target length in samples
+
+    # Preprocessing
+    normalize: bool = True
+    trim_silence: bool = False
+    apply_gain: bool = False
+
+    # Caching
+    cache_audio: bool = False
+    cache_dir: Optional[str] = None
+
+    # Data validation
+    validate_on_load: bool = True
+    skip_corrupted: bool = True
+
+    # Metadata
+    include_metadata: bool = False
+    metadata_fields: List[str] = field(default_factory=lambda: ["class", "duration", "sample_rate"])
+
+    # Augmentation (if needed by dataset)
+    augmentation: Optional[Dict[str, Any]] = None
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.split not in ["train", "val", "test", "all"]:
+            raise ValueError(f"Invalid split: {self.split}. Must be one of ['train', 'val', 'test', 'all']")
+
+        split_sum = sum(self.split_ratios.values())
+        if not (0.99 <= split_sum <= 1.01):  # Allow small floating point error
+            raise ValueError(f"Split ratios must sum to 1.0, got {split_sum}")
+
+        if self.sample_rate <= 0:
+            raise ValueError("sample_rate must be positive")
+
+
+class MADDataModule:
+    """
+    PyTorch Lightning-style DataModule for MAD dataset.
+
+    Provides a high-level interface for managing train/val/test datasets
+    and data loaders with consistent configuration.
+    """
+
+    def __init__(self, config: Union[MADConfig, Dict[str, Any]]):
+        """
+        Initialize MAD DataModule.
+
+        Args:
+            config: MADConfig instance or dictionary of configuration parameters
+        """
+        if isinstance(config, dict):
+            self.config = MADConfig(**config)
+        else:
+            self.config = config
+
+        self.train_dataset: Optional[MADDataset] = None
+        self.val_dataset: Optional[MADDataset] = None
+        self.test_dataset: Optional[MADDataset] = None
+
+        self._is_setup = False
+
+        logger.info(f"MADDataModule initialized with data_dir: {self.config.data_dir}")
+
+    def setup(self, stage: Optional[str] = None):
+        """
+        Setup datasets for training, validation, and testing.
+
+        Args:
+            stage: Either 'fit', 'test', or None for all stages
+        """
+        if self._is_setup:
+            return
+
+        config_dict = {
+            "sample_rate": self.config.sample_rate,
+            "duration": self.config.duration,
+            "target_length": self.config.target_length,
+            "normalize": self.config.normalize,
+            "cache_audio": self.config.cache_audio,
+            "cache_dir": self.config.cache_dir
+        }
+
+        if stage == "fit" or stage is None:
+            # Create train dataset
+            self.train_dataset = MADDataset(
+                data_dir=self.config.data_dir,
+                split="train",
+                config=config_dict
+            )
+            logger.info(f"Train dataset: {len(self.train_dataset)} samples")
+
+            # Create validation dataset
+            self.val_dataset = MADDataset(
+                data_dir=self.config.data_dir,
+                split="val",
+                config=config_dict
+            )
+            logger.info(f"Validation dataset: {len(self.val_dataset)} samples")
+
+        if stage == "test" or stage is None:
+            # Create test dataset
+            self.test_dataset = MADDataset(
+                data_dir=self.config.data_dir,
+                split="test",
+                config=config_dict
+            )
+            logger.info(f"Test dataset: {len(self.test_dataset)} samples")
+
+        self._is_setup = True
+
+    def train_dataloader(self,
+                        batch_size: int = 32,
+                        num_workers: int = 4,
+                        **kwargs) -> torch.utils.data.DataLoader:
+        """
+        Create training data loader.
+
+        Args:
+            batch_size: Batch size
+            num_workers: Number of worker processes
+            **kwargs: Additional arguments for DataLoader
+
+        Returns:
+            Training data loader
+        """
+        if self.train_dataset is None:
+            self.setup("fit")
+
+        return MADDataLoader.create_dataloader(
+            self.train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+            **kwargs
+        )
+
+    def val_dataloader(self,
+                      batch_size: int = 32,
+                      num_workers: int = 4,
+                      **kwargs) -> torch.utils.data.DataLoader:
+        """
+        Create validation data loader.
+
+        Args:
+            batch_size: Batch size
+            num_workers: Number of worker processes
+            **kwargs: Additional arguments for DataLoader
+
+        Returns:
+            Validation data loader
+        """
+        if self.val_dataset is None:
+            self.setup("fit")
+
+        return MADDataLoader.create_dataloader(
+            self.val_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            **kwargs
+        )
+
+    def test_dataloader(self,
+                       batch_size: int = 32,
+                       num_workers: int = 4,
+                       **kwargs) -> torch.utils.data.DataLoader:
+        """
+        Create test data loader.
+
+        Args:
+            batch_size: Batch size
+            num_workers: Number of worker processes
+            **kwargs: Additional arguments for DataLoader
+
+        Returns:
+            Test data loader
+        """
+        if self.test_dataset is None:
+            self.setup("test")
+
+        return MADDataLoader.create_dataloader(
+            self.test_dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            **kwargs
+        )
+
+    def get_class_names(self) -> List[str]:
+        """Get list of class names in order."""
+        return [MAD_CLASS_NAMES[i] for i in sorted(MAD_CLASS_NAMES.keys())]
+
+    def get_num_classes(self) -> int:
+        """Get number of classes."""
+        return len(MAD_CLASSES)
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get dataset statistics."""
+        if not self._is_setup:
+            self.setup()
+
+        stats = {
+            "num_classes": self.get_num_classes(),
+            "class_names": self.get_class_names()
+        }
+
+        if self.train_dataset:
+            stats["train"] = {
+                "num_samples": len(self.train_dataset),
+                "class_distribution": self.train_dataset.get_class_distribution()
+            }
+
+        if self.val_dataset:
+            stats["val"] = {
+                "num_samples": len(self.val_dataset),
+                "class_distribution": self.val_dataset.get_class_distribution()
+            }
+
+        if self.test_dataset:
+            stats["test"] = {
+                "num_samples": len(self.test_dataset),
+                "class_distribution": self.test_dataset.get_class_distribution()
+            }
+
+        return stats
+
+
+def create_mad_dataloader(
+    config: Union[MADConfig, Dict[str, Any]],
+    batch_size: int = 32,
+    num_workers: int = 4,
+    shuffle: Optional[bool] = None,
+    **kwargs
+) -> torch.utils.data.DataLoader:
+    """
+    Convenience function to create a MAD data loader from configuration.
+
+    This function simplifies the creation of a data loader by handling
+    config parsing and dataset initialization in one call.
+
+    Args:
+        config: MADConfig instance or dictionary of configuration parameters
+        batch_size: Batch size
+        num_workers: Number of worker processes
+        shuffle: Whether to shuffle data (None for auto: True for train, False otherwise)
+        **kwargs: Additional arguments for DataLoader
+
+    Returns:
+        Configured data loader
+
+    Example:
+        >>> config = MADConfig(data_dir="/path/to/mad", split="train")
+        >>> loader = create_mad_dataloader(config, batch_size=64)
+        >>> for batch in loader:
+        >>>     audio, labels = batch
+        >>>     # Training code here
+    """
+    # Convert dict to MADConfig if needed
+    if isinstance(config, dict):
+        mad_config = MADConfig(**config)
+    else:
+        mad_config = config
+
+    # Create dataset
+    config_dict = {
+        "sample_rate": mad_config.sample_rate,
+        "duration": mad_config.duration,
+        "target_length": mad_config.target_length,
+        "normalize": mad_config.normalize,
+        "cache_audio": mad_config.cache_audio,
+        "cache_dir": mad_config.cache_dir
+    }
+
+    dataset = MADDataset(
+        data_dir=mad_config.data_dir,
+        split=mad_config.split,
+        config=config_dict
+    )
+
+    # Auto-determine shuffle if not specified
+    if shuffle is None:
+        shuffle = (mad_config.split == "train")
+
+    # Create and return dataloader
+    return MADDataLoader.create_dataloader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        **kwargs
+    )

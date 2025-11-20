@@ -52,28 +52,49 @@ try:
     from .core.audio_processor import AudioProcessor
     from .core.feature_extractor import FeatureExtractor
     from .core.model_manager import ModelManager
+except ImportError:
+    AudioProcessor = None
+    FeatureExtractor = None
+    ModelManager = None
 
-    # Import model architectures
-    from .models.base_model import BaseModel
+# Import model architectures
+try:
+    from .models.base_model import BaseAudioModel
     from .models.audioMAE.model import AudioMAE
     from .models.ast.model import AudioSpectrogramTransformer
-    from .models.beats.model import BEATs
+    from .models.beats.model import BEATsModel
+except ImportError:
+    BaseAudioModel = None
+    AudioMAE = None
+    AudioSpectrogramTransformer = None
+    BEATsModel = None
 
-    # Import training components
+# Import training components (optional)
+try:
     from .training.trainer import Trainer
+except ImportError:
+    Trainer = None
 
-    # Import inference components
+# Import inference components (optional)
+try:
     from .inference.realtime.detector import RealtimeDetector
-    from .inference.batch.batch_processor import BatchProcessor
+except ImportError:
+    RealtimeDetector = None
 
-    # Import utilities
+try:
+    from .inference.batch.batch_processor import BatchProcessor
+except ImportError:
+    BatchProcessor = None
+
+# Import utilities
+try:
     from .utils.config_parser import ConfigParser
     from .utils.logging import setup_logging
     from .utils.device_utils import get_device_info
-
-except ImportError as e:
-    logging.warning(f"Some components could not be imported: {e}")
-    # This allows the package to be imported even if some dependencies are missing
+except ImportError:
+    ConfigParser = None
+    setup_logging = None
+    get_device_info = None
 
 
 # Main SereneSense class for high-level API
@@ -279,10 +300,10 @@ __all__ = [
     "FeatureExtractor",
     "ModelManager",
     # Models
-    "BaseModel",
+    "BaseAudioModel",
     "AudioMAE",
     "AudioSpectrogramTransformer",
-    "BEATs",
+    "BEATsModel",
     # Training
     "Trainer",
     # Inference

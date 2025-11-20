@@ -30,88 +30,143 @@ Performance Optimizations:
 - Memory optimization for large models
 """
 
-from .trainer import SereneSenseTrainer, TrainingConfig, TrainingState, ModelWrapper
+try:
+    from .trainer import SereneSenseTrainer, TrainingConfig, TrainingState, ModelWrapper
+except ImportError:
+    SereneSenseTrainer = None
+    TrainingConfig = None
+    TrainingState = None
+    ModelWrapper = None
 
-from .loss_functions import (
-    # Classification losses
-    LabelSmoothingCrossEntropy,
-    FocalLoss,
-    ArcFaceLoss,
-    # Audio-specific losses
-    SpectralConvergenceLoss,
-    MultiResolutionSTFTLoss,
-    PerceptualLoss,
-    # Regularization losses
-    MixupLoss,
-    CutMixLoss,
-    KnowledgeDistillationLoss,
-    # Combined losses
-    CombinedLoss,
-    AdaptiveLossWeighting,
-)
+# Loss functions (optional)
+try:
+    from .loss_functions import (
+        LabelSmoothingCrossEntropy,
+        FocalLoss,
+        ArcFaceLoss,
+        SpectralConvergenceLoss,
+        MultiResolutionSTFTLoss,
+        PerceptualLoss,
+        MixupLoss,
+        CutMixLoss,
+        KnowledgeDistillationLoss,
+        CombinedLoss,
+        AdaptiveLossWeighting,
+    )
+except ImportError:
+    LabelSmoothingCrossEntropy = None
+    FocalLoss = None
+    ArcFaceLoss = None
+    SpectralConvergenceLoss = None
+    MultiResolutionSTFTLoss = None
+    PerceptualLoss = None
+    MixupLoss = None
+    CutMixLoss = None
+    KnowledgeDistillationLoss = None
+    CombinedLoss = None
+    AdaptiveLossWeighting = None
 
-from .optimizers import (
-    # Custom optimizers
-    AdamWWithDecoupledWeightDecay,
-    SAMOptimizer,
-    LookaheadOptimizer,
-    # Parameter group builders
-    LayerWiseDecayParameterGroups,
-    TransformerParameterGroups,
-    AudioModelParameterGroups,
-    # Optimization utilities
-    OptimizerFactory,
-    GradientClipping,
-    ParameterStatistics,
-)
+# Optimizers (optional)
+try:
+    from .optimizers import (
+        AdamWWithDecoupledWeightDecay,
+        SAMOptimizer,
+        LookaheadOptimizer,
+        LayerWiseDecayParameterGroups,
+        TransformerParameterGroups,
+        AudioModelParameterGroups,
+        OptimizerFactory,
+        GradientClipping,
+        ParameterStatistics,
+    )
+except ImportError:
+    AdamWWithDecoupledWeightDecay = None
+    SAMOptimizer = None
+    LookaheadOptimizer = None
+    LayerWiseDecayParameterGroups = None
+    TransformerParameterGroups = None
+    AudioModelParameterGroups = None
+    OptimizerFactory = None
+    GradientClipping = None
+    ParameterStatistics = None
 
-from .schedulers import (
-    # Learning rate schedulers
-    CosineAnnealingWithWarmup,
-    LinearWarmupScheduler,
-    ExponentialWarmupScheduler,
-    PolynomialDecayScheduler,
-    # Advanced schedulers
-    OneCycleLRScheduler,
-    CyclicLRWithWarmup,
-    ReduceLROnPlateauWithWarmup,
-    # Scheduler utilities
-    SchedulerFactory,
-    WarmupWrapper,
-    SchedulerState,
-)
+# Schedulers (optional)
+try:
+    from .schedulers import (
+        CosineAnnealingWithWarmup,
+        LinearWarmupScheduler,
+        ExponentialWarmupScheduler,
+        PolynomialDecayScheduler,
+        OneCycleLRScheduler,
+        CyclicLRWithWarmup,
+        ReduceLROnPlateauWithWarmup,
+        SchedulerFactory,
+        WarmupWrapper,
+        SchedulerState,
+    )
+except ImportError:
+    CosineAnnealingWithWarmup = None
+    LinearWarmupScheduler = None
+    ExponentialWarmupScheduler = None
+    PolynomialDecayScheduler = None
+    OneCycleLRScheduler = None
+    CyclicLRWithWarmup = None
+    ReduceLROnPlateauWithWarmup = None
+    SchedulerFactory = None
+    WarmupWrapper = None
+    SchedulerState = None
 
-from .callbacks import (
-    # Core callbacks
-    EarlyStoppingCallback,
-    ModelCheckpointCallback,
-    MetricsLoggerCallback,
-    LearningRateLoggerCallback,
-    # Advanced callbacks
-    GradientNormCallback,
-    ActivationStatisticsCallback,
-    AttentionVisualizationCallback,
-    # Integration callbacks
-    WandBCallback,
-    MLflowCallback,
-    TensorBoardCallback,
-)
+# Callbacks (optional)
+try:
+    from .callbacks import (
+        EarlyStoppingCallback,
+        ModelCheckpointCallback,
+        MetricsLoggerCallback,
+        LearningRateLoggerCallback,
+        GradientNormCallback,
+        ActivationStatisticsCallback,
+        AttentionVisualizationCallback,
+        WandBCallback,
+        MLflowCallback,
+        TensorBoardCallback,
+    )
+except ImportError:
+    EarlyStoppingCallback = None
+    ModelCheckpointCallback = None
+    MetricsLoggerCallback = None
+    LearningRateLoggerCallback = None
+    GradientNormCallback = None
+    ActivationStatisticsCallback = None
+    AttentionVisualizationCallback = None
+    WandBCallback = None
+    MLflowCallback = None
+    TensorBoardCallback = None
 
-from .metrics import (
-    # Training metrics
-    TrainingMetrics,
-    ValidationMetrics,
-    AudioClassificationMetrics,
-    # Metric calculators
-    AccuracyCalculator,
-    F1ScoreCalculator,
-    AUCCalculator,
-    TopKAccuracyCalculator,
-    # Audio-specific metrics
-    SpectralMetrics,
-    PerceptualMetrics,
-    DiversityMetrics,
-)
+# Metrics (optional)
+try:
+    from .metrics import (
+        TrainingMetrics,
+        ValidationMetrics,
+        AudioClassificationMetrics,
+        AccuracyCalculator,
+        F1ScoreCalculator,
+        AUCCalculator,
+        TopKAccuracyCalculator,
+        SpectralMetrics,
+        PerceptualMetrics,
+        DiversityMetrics,
+    )
+except ImportError:
+    TrainingMetrics = None
+    ValidationMetrics = None
+    AudioClassificationMetrics = None
+    AccuracyCalculator = None
+    F1ScoreCalculator = None
+    AUCCalculator = None
+    TopKAccuracyCalculator = None
+    SpectralMetrics = None
+    PerceptualMetrics = None
+    DiversityMetrics = None
 
 __all__ = [
     # Core training components
@@ -276,11 +331,11 @@ def create_trainer(
     Returns:
         Configured SereneSense trainer
     """
-    from ..utils.config import ConfigManager
+    from ..utils.config_parser import ConfigParser
 
     # Load configuration
     if config_path:
-        config_manager = ConfigManager()
+        config_manager = ConfigParser()
         training_config = config_manager.load_config(config_path)
     elif preset:
         training_config = get_training_preset(preset, **kwargs)

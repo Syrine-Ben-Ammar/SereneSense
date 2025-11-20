@@ -26,6 +26,7 @@ import os
 import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -417,25 +418,82 @@ class BaseDatasetPreparer:
 class MADPreparer(BaseDatasetPreparer):
     NAME = "mad"
 
-    def collect_samples(self) -> List[AudioSample]:
+    def __init__(self, config: Dict[str, Any], data_root: Path, args: argparse.Namespace) -> None:
+        super().__init__(config=config, data_root=data_root, args=args)
         extraction_cfg = self.config.get("source", {}).get("extraction", {})
         target_dir = Path(extraction_cfg.get("target_dir", "data/raw/mad"))
-        base_path = target_dir if target_dir.is_absolute() else self.data_root.parent / target_dir
-        samples: List[AudioSample] = []
-        label_map = {
-            canonical_label(info.get("name", str(idx))): canonical_label(info.get("name", str(idx)))
-            for idx, info in self.config.get("classes", {}).get("definitions", {}).items()
+        self.base_path = target_dir if target_dir.is_absolute() else self.data_root.parent / target_dir
+        self._label_lookup = self._load_csv_label_lookup(self.base_path)
+        self.label_metadata = self._build_label_metadata()
+
+    def _build_label_metadata(self) -> Dict[str, Any]:
+        class_defs = self.config.get("classes", {}).get("definitions", {})
+        class_names = {
+            str(int(idx)): canonical_label(info.get("name", str(idx)))
+            for idx, info in class_defs.items()
         }
+        if not class_names and self._label_lookup:
+            # Fall back to discovered labels if config is missing
+            discovered = {str(label_id) for label_id in self._label_lookup.values()}
+            class_names = {label_id: label_id for label_id in discovered}
+        return {
+            "class_names": class_names,
+            "num_classes": len(class_names),
+        }
+
+    def _load_csv_label_lookup(self, base_path: Path) -> Dict[str, int]:
+        lookup: Dict[str, int] = {}
+        csv_files = ["training.csv", "validation.csv", "test.csv"]
+        for csv_name in csv_files:
+            csv_path = base_path / csv_name
+            if not csv_path.exists():
+                continue
+            with csv_path.open("r", encoding="utf-8", newline="") as handle:
+                reader = csv.DictReader(handle)
+                if not reader.fieldnames or "path" not in reader.fieldnames or "label" not in reader.fieldnames:
+                    continue
+                for row in reader:
+                    rel_path = (row.get("path") or "").strip()
+                    label_value = row.get("label")
+                    if not rel_path or label_value is None:
+                        continue
+                    try:
+                        label_id = int(label_value)
+                    except ValueError:
+                        continue
+                    resolved = (base_path / rel_path.replace("/", os.sep)).resolve()
+                    lookup[str(resolved)] = label_id
+        if not lookup:
+            logging.getLogger(__name__).warning(
+                "MAD label lookup could not be built from CSV files. "
+                "Falling back to directory names (may yield incorrect labels)."
+            )
+        return lookup
+
+    def collect_samples(self) -> List[AudioSample]:
+        base_path = self.base_path
+        samples: List[AudioSample] = []
+        id_to_name = self.label_metadata.get("class_names", {})
         for idx, file_path in enumerate(self._iter_audio_files(base_path)):
-            label = canonical_label(file_path.parent.name)
-            mapped = label_map.get(label, label)
+            lookup_key = str(file_path.resolve())
+            label_id = self._label_lookup.get(lookup_key)
+            if label_id is None:
+                logging.getLogger(__name__).warning(
+                    "Skipping %s because no label was found in MAD CSV metadata.", file_path
+                )
+                continue
+            label_str = str(label_id)
+            class_name = id_to_name.get(label_str, label_str)
             samples.append(
                 AudioSample(
                     path=file_path,
-                    label=mapped,
+                    label=label_str,
                     dataset=self.NAME,
                     index=idx,
-                    metadata={"relative_path": str(file_path.relative_to(base_path))},
+                    metadata={
+                        "relative_path": str(file_path.relative_to(base_path)),
+                        "class_name": class_name,
+                    },
                 )
             )
         return samples
@@ -462,14 +520,37 @@ class FSD50KPreparer(BaseDatasetPreparer):
             raise RuntimeError(f"Unknown FSD50K subset: {selected_subset}")
 
         ground_truth_path = base_path / subset_cfg.get("ground_truth", "")
+
+        # Check if structured directory exists, otherwise use base_path directly
+        audio_dir_name = subset_cfg.get("audio_dir", "")
+        audio_dir = base_path / audio_dir_name
+        if not audio_dir.exists() and base_path.exists():
+            # Fallback: audio files might be directly in base_path
+            audio_dir = base_path
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Expected audio directory not found: {base_path / audio_dir_name}. "
+                f"Using base directory: {audio_dir}"
+            )
+
         if not ground_truth_path.exists():
-            raise RuntimeError(f"Ground truth CSV not found: {ground_truth_path}")
+            # Fallback: if ground truth CSV is missing, infer labels from filename or use 'unknown'
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Ground truth CSV not found: {ground_truth_path}. "
+                f"Will attempt to infer labels from filenames or use 'unknown' label."
+            )
+            return self._collect_samples_without_metadata(audio_dir, label_mapper)
 
         metadata = load_fsd50k_metadata(ground_truth_path)
         samples: List[AudioSample] = []
-        audio_dir = base_path / subset_cfg.get("audio_dir", "")
         for idx, (filename, labels) in enumerate(metadata.items()):
-            file_path = audio_dir / filename
+            normalized_name = filename.strip()
+            if not normalized_name.lower().endswith(".wav"):
+                normalized_name = f"{normalized_name}.wav"
+            file_path = audio_dir / normalized_name
             if not file_path.exists():
                 continue
             canonical = map_label(labels, label_mapper)
@@ -480,6 +561,29 @@ class FSD50KPreparer(BaseDatasetPreparer):
                     dataset=self.NAME,
                     index=idx,
                     metadata={"subset": selected_subset, "labels": list(labels)},
+                )
+            )
+        return samples
+
+    def _collect_samples_without_metadata(
+        self, audio_dir: Path, label_mapper: Dict[str, str]
+    ) -> List[AudioSample]:
+        """Fallback method when ground truth CSV is missing."""
+        samples: List[AudioSample] = []
+        for idx, file_path in enumerate(self._iter_audio_files(audio_dir)):
+            # Try to infer label from parent directory or use 'unknown'
+            label = canonical_label(file_path.parent.name)
+            if label == audio_dir.name.lower():
+                # If parent is the base directory, use 'unknown'
+                label = "unknown"
+            mapped = label_mapper.get(label, label)
+            samples.append(
+                AudioSample(
+                    path=file_path,
+                    label=mapped,
+                    dataset=self.NAME,
+                    index=idx,
+                    metadata={"inferred_label": True, "source": "filename"},
                 )
             )
         return samples
@@ -698,6 +802,7 @@ def process_split(
     output_root: Path,
     logger: logging.Logger,
     max_workers: int = 4,
+    label_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     if not samples:
         logger.warning("No samples provided for split '%s'", split_name)
@@ -751,6 +856,22 @@ def process_split(
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     with manifest_path.open("w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
+
+    if label_metadata:
+        split_label_counts = Counter(sample.label for sample in samples)
+        metadata_payload = {
+            "split": split_name,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "num_samples": len(samples),
+            "label_counts": {label: count for label, count in split_label_counts.items()},
+            "class_names": label_metadata.get("class_names", {}),
+            "num_classes": label_metadata.get(
+                "num_classes", len(label_metadata.get("class_names", {}))
+            ),
+        }
+        metadata_path = output_root / "metadata.json"
+        with metadata_path.open("w", encoding="utf-8") as meta_handle:
+            json.dump(metadata_payload, meta_handle, indent=2)
 
     return {"manifest": manifest, "statistics": stats.to_dict()}
 
@@ -884,6 +1005,7 @@ def prepare_dataset(
     dataset_output_root.mkdir(parents=True, exist_ok=True)
 
     dataset_stats: Dict[str, Any] = {}
+    label_metadata = getattr(preparer, "label_metadata", None)
     for split_name, split_samples in splits.items():
         split_dir = dataset_output_root / split_name
         if args.dry_run:
@@ -894,7 +1016,15 @@ def prepare_dataset(
                 split_name,
             )
             continue
-        result = process_split(split_name, split_samples, processing_cfg, split_dir, logger, args.max_workers)
+        result = process_split(
+            split_name,
+            split_samples,
+            processing_cfg,
+            split_dir,
+            logger,
+            args.max_workers,
+            label_metadata=label_metadata,
+        )
         dataset_stats[split_name] = result.get("statistics", {})
 
     if args.dry_run:

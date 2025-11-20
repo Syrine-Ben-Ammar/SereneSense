@@ -55,7 +55,10 @@ except ImportError:
 from ..core.audio_processor import AudioProcessor
 from ..core.feature_extractor import FeatureExtractor
 from ..core.model_manager import ModelManager
-from ..utils.device_utils import DeviceManager
+try:
+    from ..utils.device_utils import DeviceManager
+except ImportError:
+    DeviceManager = None
 
 logger = logging.getLogger(__name__)
 

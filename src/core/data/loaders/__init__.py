@@ -29,10 +29,13 @@ try:
         AudioSetDataModule,
         create_audioset_dataloader
     )
+    # Backward compatibility alias
+    AudioSetDataLoader = AudioSetDataModule
 except ImportError:
     AudioSetDataset = None
     AudioSetConfig = None
     AudioSetDataModule = None
+    AudioSetDataLoader = None
     create_audioset_dataloader = None
 
 try:
@@ -42,10 +45,13 @@ try:
         FSD50KDataModule,
         create_fsd50k_dataloader
     )
+    # Backward compatibility alias
+    FSD50KDataLoader = FSD50KDataModule
 except ImportError:
     FSD50KDataset = None
     FSD50KConfig = None
     FSD50KDataModule = None
+    FSD50KDataLoader = None
     create_fsd50k_dataloader = None
 
 # Supported datasets
@@ -147,20 +153,22 @@ def create_dataloader(dataset_name: str, config_path: str, **kwargs):
 __all__ = [
     # MAD Dataset
     'MADDataset',
-    'MADConfig', 
+    'MADConfig',
     'MADDataModule',
     'create_mad_dataloader',
-    
+
     # AudioSet Dataset (if available)
     'AudioSetDataset',
     'AudioSetConfig',
-    'AudioSetDataModule', 
+    'AudioSetDataModule',
+    'AudioSetDataLoader',  # Alias for backward compatibility
     'create_audioset_dataloader',
     
     # FSD50K Dataset (if available)
     'FSD50KDataset',
     'FSD50KConfig',
     'FSD50KDataModule',
+    'FSD50KDataLoader',  # Alias for backward compatibility
     'create_fsd50k_dataloader',
     
     # Utility functions

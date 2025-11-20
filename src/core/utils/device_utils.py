@@ -1006,3 +1006,58 @@ def monitor_device_resources(device: str, duration: float = 1.0) -> Dict[str, An
             }
 
     return result
+
+
+class DeviceManager:
+    """
+    Simple device manager for training.
+
+    Wraps device detection and selection functionality for use in training scripts.
+    """
+
+    def __init__(self, device: Optional[str] = None):
+        """
+        Initialize device manager.
+
+        Args:
+            device: Optional device string. If None, will auto-detect optimal device.
+        """
+        self._device = device
+        self._device_info = None
+
+    def get_device(self) -> str:
+        """
+        Get the device to use for training.
+
+        Returns:
+            Device string (e.g., 'cuda:0', 'cpu', 'mps')
+        """
+        if self._device is not None:
+            return self._device
+
+        # Auto-detect optimal device
+        return get_optimal_device(task="training")
+
+    def get_device_info(self) -> Dict[str, Any]:
+        """
+        Get detailed device information.
+
+        Returns:
+            Dictionary containing device information
+        """
+        if self._device_info is None:
+            self._device_info = get_device_info()
+        return self._device_info
+
+    def optimize_device(self, device: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Apply device-specific optimizations.
+
+        Args:
+            device: Optional device string. If None, uses current device.
+
+        Returns:
+            Dictionary containing applied optimizations
+        """
+        target_device = device or self.get_device()
+        return optimize_device(target_device)
