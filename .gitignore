@@ -36,10 +36,6 @@ venv.bak/
 *.manifest
 *.spec
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -168,16 +164,14 @@ datasets/
 !data/.gitkeep
 !data/README.md
 
-# Project Specific - Models
-models/
+# Project Specific - Models and Large Files (>20MB)
+# Large model checkpoints (>20MB)
+outputs/*.pth
+outputs/best_model_*.pth
+outputs/checkpoint_*.pth
+outputs/audiomae_fp32.onnx
 models/*.pth
 models/*.pt
-models/*.onnx
-models/*.trt
-models/*.h5
-models/*.hdf5
-models/*.pkl
-models/*.pickle
 checkpoints/
 !models/.gitkeep
 !models/README.md
@@ -188,11 +182,7 @@ logs/
 !logs/.gitkeep
 *.log.*
 
-# Project Specific - Outputs
-# Ignore large model checkpoints but keep configuration and metadata
-outputs/*.pth
-outputs/*.pt
-outputs/*.onnx
+# Project Specific - Outputs (keep small files)
 outputs/evaluations/
 outputs/history/
 outputs/phase1/
@@ -205,18 +195,8 @@ results/
 experiments/
 !outputs/.gitkeep
 !outputs/training_config.json
-!experiments/.gitkeep
 
-# Machine Learning
-*.pth
-*.pt
-*.onnx
-*.trt
-*.h5
-*.hdf5
-*.pkl
-*.pickle
-*.joblib
+# Machine Learning - Large files only
 wandb/
 mlruns/
 .mlflow/
@@ -307,7 +287,6 @@ id_rsa*
 *.dll
 *.exe
 *.o
-*.so
 
 # C extensions
 *.c
@@ -316,27 +295,6 @@ id_rsa*
 *.cxx
 *.h
 *.hpp
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
 
 # PyCharm
 .idea/

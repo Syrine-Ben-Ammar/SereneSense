@@ -1,0 +1,34 @@
+# Raspberry Pi 5 Deployment Requirements
+# SereneSense Military Vehicle Sound Detection System
+# Python 3.11+ recommended
+
+# Core inference
+onnxruntime==1.16.0         # ONNX Runtime (ARM64 optimized)
+numpy==1.24.3               # Numerical computing
+
+# Audio processing
+librosa==0.10.1             # Audio analysis and feature extraction
+soundfile==0.12.1           # Audio file I/O
+scipy==1.11.4               # Scientific computing (required by librosa)
+
+# Audio capture
+pyaudio==0.2.14             # Real-time audio I/O
+
+# Utilities
+tqdm==4.66.1                # Progress bars (optional)
+
+# Installation notes:
+# 1. Install system dependencies first:
+#    sudo apt-get update
+#    sudo apt-get install -y python3-pip python3-dev portaudio19-dev libsndfile1
+#
+# 2. Install Python packages:
+#    pip3 install -r rpi_requirements.txt
+#
+# 3. If pyaudio installation fails, try:
+#    sudo apt-get install python3-pyaudio
+#
+# 4. For better performance, consider:
+#    - Using virtual environment
+#    - Enabling swap space (if RAM < 8GB)
+#    - Active cooling for sustained operation
