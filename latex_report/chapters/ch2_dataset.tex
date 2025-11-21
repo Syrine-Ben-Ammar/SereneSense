@@ -1,0 +1,107 @@
+\chapter{Jeu de données et prétraitements}\label{chap:dataset}
+
+\section{Présentation du jeu de données Military Audio Detection}
+Le jeu de données \textbf{Military Audio Detection (MAD)} a été conçu pour des applications de surveillance acoustique militaire. Il comprend 7\,466 enregistrements audio mono rééchantillonnés à 16~kHz, couvrant des scènes de quelques secondes jusqu’à une dizaine de secondes. Dans le cadre du projet SereneSense, les signaux sont préparés sous forme de segments de 10~secondes pour les expériences principales avec AudioMAE, ce qui permet de capturer davantage de contexte temporel (approche d’un véhicule, phases de régime moteur, etc.).
+
+Les enregistrements sont répartis en sept classes représentatives, alignées sur la définition adoptée dans le projet SereneSense :
+\begin{itemize}
+  \item \textbf{Hélicoptère} : aéronefs à voilure tournante ;
+  \item \textbf{Avion de chasse} : jets militaires à voilure fixe ;
+  \item \textbf{Véhicule militaire} : véhicules blindés, transport de troupes, engins chenillés ;
+  \item \textbf{Camion} : camions militaires logistiques ;
+  \item \textbf{Mouvements à pied} : déplacements d’infanterie, pas humains ;
+  \item \textbf{Parole} : conversations, communications vocales en environnement militaire ;
+  \item \textbf{Bruit de fond} : ambiance sonore (vent, environnement urbain ou rural sans événement spécifique).
+\end{itemize}
+
+Pour les expériences menées dans ce mémoire, le jeu de données est réparti en trois sous-ensembles suivant la configuration adoptée dans le projet SereneSense :
+\begin{itemize}
+  \item \textbf{Entraînement} : 5\,464 échantillons (73{,}2~\%) ;
+  \item \textbf{Validation} : 965 échantillons (12{,}9~\%) ;
+  \item \textbf{Test} : 1\,037 échantillons (13{,}9~\%).
+\end{itemize}
+Ces valeurs correspondent à la préparation finale automatisée réalisée par les scripts \texttt{prepare\_data.py} et \texttt{prepare\_mad\_metadata.py}, qui construisent les fichiers HDF5 pour chaque sous-ensemble et génèrent un fichier de métadonnées (distribution des classes, comptage par split) utilisé ensuite par les pipelines d’entraînement et d’évaluation.
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Classe & Entraînement & Validation & Test \\
+    \midrule
+    Hélicoptère & -- & -- & -- \\
+    Avion de chasse & -- & -- & -- \\
+    Véhicules militaires & -- & -- & -- \\
+    Camions & -- & -- & -- \\
+    Mouvements à pied & -- & -- & -- \\
+    Parole & -- & -- & -- \\
+    Bruit de fond & -- & -- & -- \\
+    \midrule
+    Total & 5\,464 & 965 & 1\,037 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Distribution par classe (remplir avec les valeurs exactes).}
+  \label{tab:distribution-classes}
+\end{table}
+
+\placeholderfigure[fig:distribution-classes]{Distribution des classes}{Histogramme de la distribution par classe (à insérer)}
+\placeholderfigure[fig:waveform-exemples]{Exemples de signaux}{Formes d'onde représentatives par classe}
+
+\section{Prétraitements audio}
+Les signaux audio bruts sont d’abord normalisés et convertis en représentations temps–fréquence adaptées à l’apprentissage profond. Le pipeline adopté s’inspire des approches classiques en reconnaissance de la parole et comprend les étapes suivantes.
+
+\subsection{Transformée de Fourier à court terme}
+Le signal discret $x[n]$ est découpé en trames temporelles de longueur $N$ avec un recouvrement $H$. Pour chaque trame $t$, on applique une fenêtre de Hann $w[n]$ puis la transformée de Fourier à court terme :
+\begin{equation}
+X(k,t) = \sum_{n=0}^{N-1} x[n + tH]\, w[n]\, e^{-j 2 \pi k n / N},
+\end{equation}
+où $k$ désigne l’indice fréquentiel.
+
+\subsection{Projection sur l’échelle de Mel}
+Le spectre de puissance est ensuite projeté sur un banc de filtres triangulaires suivant l’échelle de Mel afin de se rapprocher de la perception humaine des fréquences. Le spectrogramme de puissance sur l’échelle de Mel $S_{\text{mel}}(m,t)$ est donné par :
+\begin{equation}
+S_{\text{mel}}(m, t) = \sum_{k = k_{\min}}^{k_{\max}} H_{m}(k)\, \lvert X(k,t)\rvert^{2},
+\end{equation}
+où $H_{m}(k)$ est la réponse du $m$-ème filtre de Mel.
+
+\subsection{Coefficients cepstraux en fréquence de Mel}
+Les énergies passent ensuite en échelle logarithmique, puis une transformée en cosinus discrète est appliquée pour obtenir les coefficients cepstraux en fréquence de Mel (MFCC). Pour un temps $t$ et un indice de coefficient $c$, on a :
+\begin{equation}
+C(c,t) = \sum_{m=1}^{M} \log\bigl(S_{\text{mel}}(m,t)\bigr)\,
+        \cos\left[\frac{\pi c}{M}\left(m-\tfrac{1}{2}\right)\right],
+\end{equation}
+où $M$ est le nombre de filtres de Mel.
+
+\subsection{Coefficients delta et delta-delta}
+Afin de capturer la dynamique temporelle, on calcule la dérivée première (coefficients delta) puis la dérivée seconde (coefficients delta-delta) des MFCC :
+\begin{equation}
+\Delta C(c,t) =
+ \frac{\sum_{n=1}^{K} n\bigl(C(c,t+n) - C(c,t-n)\bigr)}
+      {2 \sum_{n=1}^{K} n^{2}},
+\end{equation}
+\begin{equation}
+\Delta^{2} C(c,t) =
+ \frac{\sum_{n=1}^{K} n\bigl(\Delta C(c,t+n) - \Delta C(c,t-n)\bigr)}
+      {2 \sum_{n=1}^{K} n^{2}},
+\end{equation}
+où $K$ est l’ordre de la fenêtre temporelle utilisée pour l’approximation.
+
+\subsection{Normalisation et construction du tenseur d’entrée}
+Les trois matrices $C(c,t)$, $\Delta C(c,t)$ et $\Delta^{2} C(c,t)$ sont normalisées par standardisation (moyenne nulle et variance unitaire) puis empilées pour former un tenseur tridimensionnel de taille $(F \times T \times 3)$, où $F$ est le nombre de coefficients retenus et $T$ le nombre de trames temporelles. Ce tenseur constitue l’entrée des modèles convolutionnel et convolutionnel récurrent.
+
+\placeholderfigure[fig:mel-exemple]{Représentation temps–fréquence}{Exemple de représentation MFCC (avec delta et delta-delta) pour une classe véhicule}
+
+\section{Augmentations et régularisation des données}
+Pour améliorer la robustesse :
+\begin{itemize}
+  \item un masquage temporel et fréquentiel de type \emph{SpecAugment} appliqué sur les représentations temps–fréquence ;
+  \item l’ajout contrôlé de bruit de fond pour simuler des environnements plus bruités ;
+  \item une normalisation systématique des caractéristiques pour centrer et réduire les distributions.
+\end{itemize}
+
+Ces augmentations visent à réduire le surapprentissage et à améliorer la capacité de généralisation des modèles en présence de conditions acoustiques variées.
+
+\section{Stratégie de séparation des données}
+La séparation entraînement/validation/test conserve la distribution des classes et évite les recouvrements de scènes acoustiques similaires entre les ensembles. La présence d’un ensemble de validation dédié (environ 10~\% du total) permet d’estimer la capacité de généralisation des modèles et d’ajuster les hyperparamètres sans biais sur le jeu de test final.
+
+\section{Nettoyage et contrôle qualité}
+Les enregistrements bruités ou tronqués sont filtrés en amont. Les fichiers invalides (durée $<9{,}5~\text{s}$ ou absence de signature spectrale) sont exclus. Les méta-données (classe, durée, SNR estimée) sont conservées pour la reproductibilité et la possibilité d'entraînement conditionnel ultérieur.

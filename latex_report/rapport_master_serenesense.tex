@@ -1,0 +1,205 @@
+\documentclass[12pt,oneside,a4paper]{memoir}
+
+% ---------- Encodage et langue ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{csquotes}
+
+% ---------- Mise en page ----------
+\usepackage{geometry}
+\geometry{margin=2.8cm}
+\usepackage{microtype}
+\usepackage{setspace}
+\setstretch{1.15}
+
+% ---------- Maths, tableaux, graphiques ----------
+\usepackage{amsmath,amssymb}
+\numberwithin{equation}{chapter}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{array}
+
+% ---------- Code, algorithmes ----------
+\usepackage{listings}
+\usepackage[ruled,vlined,french,onelanguage]{algorithm2e}
+
+% ---------- Références et hyperliens ----------
+\usepackage{xcolor}
+\definecolor{sereneBlue}{HTML}{0B3C5D}
+\definecolor{sereneGold}{HTML}{C69214}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=sereneBlue,
+  citecolor=sereneBlue,
+  urlcolor=sereneBlue,
+  pdfauthor={Ben Ammar Sirine},
+  pdftitle={Mémoire Mastère - Détection Sonore Véhicules NOMAD}
+}
+\usepackage[noabbrev,nameinlink]{cleveref}
+\crefname{chapter}{chapitre}{chapitres}
+\crefname{section}{section}{sections}
+\crefname{figure}{figure}{figures}
+\crefname{table}{table}{tables}
+\crefname{equation}{équation}{équations}
+
+% ---------- Bibliographie ----------
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+% ---------- Identité du document ----------
+\newcommand{\projecttitle}{Détection Sonore Véhicules NOMAD}
+\newcommand{\studentname}{Ben Ammar Sirine}
+
+% ---------- Styles de pages ----------
+\makepagestyle{serenesense}
+\makeevenhead{serenesense}{\scshape\chaptername~\thechapter}{\scshape\projecttitle}{\scshape\nouppercase{\leftmark}}
+\makeoddhead{serenesense}{\scshape\chaptername~\thechapter}{\scshape\projecttitle}{\scshape\nouppercase{\leftmark}}
+\makeevenfoot{serenesense}{\scshape\projecttitle}{}{\scshape\studentname}
+\makeoddfoot{serenesense}{\scshape\projecttitle}{}{\scshape\studentname}
+\pagestyle{serenesense}
+\aliaspagestyle{chapter}{serenesense}
+
+% ---------- Styles de chapitres ----------
+\chapterstyle{hangnum}
+\setsecnumdepth{subsection}
+\maxtocdepth{subsection}
+
+% ---------- Listes et codes ----------
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{sereneBlue}\bfseries,
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{sereneGold},
+  frame=single,
+  breaklines=true,
+  tabsize=2,
+  captionpos=b
+}
+
+% ---------- Macros utilitaires ----------
+\newcommand{\placeholderfigure}[3][]{%
+  \begin{figure}[H]
+    \centering
+    \fbox{%
+      \begin{minipage}[c][0.26\textheight][c]{0.9\textwidth}
+        \centering
+        {\Large Image à insérer : #2}\\[0.5em]
+        {\small #3}
+      \end{minipage}}
+    \caption{#3}
+    \label{fig:#1}
+  \end{figure}
+}
+
+\newcommand{\placetable}[2]{%
+  \begin{table}[H]
+    \centering
+    \begin{tabular}{@{}p{0.35\textwidth}p{0.55\textwidth}@{}}
+      \toprule
+      Élément & Contenu à insérer \\ \midrule
+      #1 \\ \bottomrule
+    \end{tabular}
+    \caption{#2}
+  \end{table}
+}
+
+\begin{document}
+
+% ========== Page de titre ==========
+\begin{titlingpage}
+  \centering
+  \vspace*{2cm}
+  {\Large Mémoire de Stage de Fin d'Études\\[0.6em]
+  Pour l'obtention du Mastère Professionnel en Ingénierie Avancée des Systèmes Robotisés et Intelligence Artificielle}\\[1.4cm]
+  {\Huge\bfseries \projecttitle\\[0.8em]
+  \normalsize Détection et classification acoustique en milieu militaire}\\[1.1cm]
+  \placeholderfigure[fig:logo]{Logo Avionav}{Logo de l'entreprise d'accueil (remplacer par le fichier réel)}\\[0.9cm]
+  {\large Présenté par : \textbf{\studentname}}\\[0.4cm]
+  {\large Organisme d'accueil : \textbf{Avionav}}\\[0.2cm]
+  {\large Encadrants : \textbf{[Nom académique]} \& \textbf{[Nom entreprise]}}\\[1.2cm]
+  {\large Année universitaire : 2024--2025}\\
+  \vfill
+  {\large \today}
+\end{titlingpage}
+
+% ========== Préface et sommaire ==========
+\frontmatter
+
+\chapter*{Remerciements}
+\noindent A la fin de ce travail, je souhaite exprimer ma gratitude à toutes les personnes qui ont, de près ou de loin, contribué au succès de ce projet.\\
+\noindent Je tiens, avant tout, à exprimer ma profonde reconnaissance à Monsieur le Professeur Hassene Seddik, mon encadrant pédagogique à l’ENSIT, pour l’attention et l’intérêt qu’il a portés à ce projet. Son suivi constant, ses orientations pertinentes et la qualité de son encadrement ont constitué pour moi une véritable source d’apprentissage et de motivation tout au long de cette expérience.\\
+\noindent J’adresse également mes sincères remerciements à Monsieur Foued El Kamel, mon encadrant professionnel au sein de l’entreprise Avionav, pour son accompagnement, sa disponibilité et ses conseils techniques avisés. Son expertise et son sens du professionnalisme ont été essentiels à la réussite de ce travail.\\
+\noindent Je remercie également l’ensemble des membres du jury pour l’honneur qu’ils me font en acceptant d’évaluer ce travail. Leurs remarques et suggestions constitueront, sans aucun doute, une contribution précieuse à l’amélioration et à l’approfondissement de mes compétences.\\
+\noindent Je tiens aussi à exprimer ma gratitude envers toute l’équipe de l’entreprise Avionav pour leur accueil chaleureux, leur collaboration et leur esprit d’équipe. Leur soutien et leur partage d’expérience ont rendu cette période de stage à la fois enrichissante et formatrice.\\
+\noindent Enfin, j’adresse mes plus vifs remerciements à mes professeurs de l’ENSIT, ainsi qu’à ma famille et mes amis, pour leur soutien moral, leurs encouragements constants et leur présence bienveillante tout au long de mon parcours académique.
+
+\chapter*{Dédicaces}
+\noindent À ma chère mère,\\
+pour son amour inépuisable, sa douceur et ses prières constantes qui m’ont toujours accompagnée dans les moments de doute et d’effort.\\[0.4em]
+À mon père,\\
+pour sa sagesse, son soutien indéfectible et les valeurs de persévérance et d’honnêteté qu’il m’a transmises.\\[0.4em]
+À mon époux,\\
+pour sa compréhension, son encouragement permanent et sa présence bienveillante tout au long de mon parcours universitaire.\\[0.4em]
+À mon enfant bien-aimé,\\
+véritable source de bonheur et de motivation, qui m’inspire chaque jour à donner le meilleur de moi-même.\\[0.4em]
+À ma belle-mère,\\
+à qui je dois une profonde reconnaissance pour son aide précieuse et son soutien sans faille, grâce auxquels j’ai pu poursuivre mes études de master durant ces deux années.\\[0.8em]
+Ce travail est le reflet de votre amour, de votre patience et de votre confiance. Je vous le dédie avec tout mon cœur.
+
+\chapter*{Résumé}
+Ce projet de fin d’études, réalisé dans le cadre du Mastère Professionnel à l’ENSIT et à l’UVT en collaboration avec l’entreprise Avionav, porte sur le développement d’un système de détection et de classification sonore destiné au rover NOMAD, conçu pour des missions de surveillance de zones frontalières et pour des usages à finalité militaire.
+
+L’étude vise à reconnaître non seulement la présence et le type de véhicules à partir de leurs signatures acoustiques, mais aussi un ensemble d’événements sonores pertinents en contexte opérationnel : mouvements de troupes, communications vocales, véhicules logistiques, bruit de fond ambiant et activités aériennes (hélicoptères, avions de chasse). Pour atteindre ces objectifs, la base de données \emph{Military Audio Detection} (MAD) a été préparée et structurée (7\,466 enregistrements répartis en 7 classes) puis intégrée dans un pipeline complet d’entraînement et d’évaluation.
+
+Le travail réalisé s’articule autour de trois axes principaux. Premièrement, la mise en place de \textbf{baselines MFCC} : extraction de caractéristiques audio (MFCC, coefficients delta et delta-delta), implémentation et entraînement de réseaux de neurones convolutionnels (CNN) et convolutionnels récurrents (CRNN). Ces modèles atteignent respectivement 66{,}88~\% et 73{,}21~\% d’exactitude sur l’ensemble de validation MAD, établissant une première référence sur le jeu de données. Deuxièmement, l’introduction d’un \textbf{modèle transformeur AudioMAE} opérant sur des spectrogrammes de Mel de taille $128\times128$ sur 10~secondes d’audio : ce modèle atteint 82{,}15~\% d’exactitude de validation, avec une généralisation particulièrement favorable (validation meilleure que l’entraînement), et constitue la contribution principale en termes de performance.
+
+Troisièmement, le projet aboutit à la création d’une \textbf{chaîne logicielle et de déploiement complète} sous forme du dépôt SereneSense : préparation automatisée des données, scripts d’entraînement et d’évaluation, génération de rapports, export du modèle AudioMAE au format ONNX, quantification en entiers 8 bits (INT8) et mise en place d’un pipeline de détection temps réel sur Raspberry~Pi~5. Les mesures effectuées sur poste de développement montrent une latence totale d’environ 46~ms pour le modèle ONNX FP32, et les projections sur Raspberry~Pi~5 indiquent des latences attendues de 260 à 340~ms avec le modèle INT8, pour une consommation mémoire d’environ 800~Mo, ce qui respecte confortablement la contrainte de 500~ms par fenêtre audio.
+
+Les travaux menés démontrent ainsi qu’il est possible de combiner des architectures modernes de type transformeur avec des contraintes d’embarqué, et offrent un socle technique solide pour l’intégration ultérieure de ce module de perception acoustique dans le rover NOMAD. Les perspectives incluent l’enrichissement de la base MAD par de nouveaux scénarios, l’exploration de modèles audio pré-entraînés plus avancés et l’intégration multimodale avec les autres capteurs du robot.
+
+\textbf{Mots clés :} classification sonore, Military Audio Detection, réseau de neurones convolutionnel, réseau de neurones convolutionnel récurrent, AudioMAE, transformeur, déploiement embarqué, Raspberry~Pi~5, rover NOMAD, Python.
+
+\chapter*{Abstract}
+This master thesis, carried out within the professional program at ENSIT and UVT in collaboration with Avionav, focuses on the development of a sound detection and classification system for the NOMAD rover dedicated to border surveillance and military-oriented missions.
+
+The goal is to recognize not only the presence and type of vehicles from their acoustic signatures, but also a set of operationally relevant sound events such as radio communications, gunshots, footsteps, bombardments and aerial activity. To achieve this, a representative audio database is built from multiple sources and environments, then processed to feed the training and evaluation of deep learning models.
+
+The work includes the preparation of the Military Audio Detection (MAD) dataset, the extraction of audio features (MFCC, delta and delta-delta coefficients), and the design and training of convolutional neural network and convolutional recurrent neural network models. Their performance is evaluated using overall classification rate, confusion matrices and a confidence rate based on a minimum probability threshold set to 70\%.
+
+Experiments show that CNN and CRNN architectures can effectively discriminate several sound classes in noisy environments, each model offering specific advantages in terms of accuracy and temporal information capture. These results represent a key step towards an intelligent acoustic surveillance module embedded on a mobile rover. The study also opens perspectives for enriching the dataset, improving model performance and deploying the system on resource-constrained embedded platforms.
+
+\textbf{Keywords:} sound classification, Military Audio Detection, convolutional neural network, convolutional recurrent neural network, NOMAD rover, Python, Google Colab.
+
+\tableofcontents*
+\listoffigures
+\listoftables
+\listofalgorithms
+
+% ========== Corps ==========
+\mainmatter
+
+\include{chapters/ch1_intro_etat_art}
+\include{chapters/ch2_dataset}
+\include{chapters/ch3_methodology}
+\include{chapters/ch4_results}
+\include{chapters/ch5_deployment}
+\include{chapters/ch6_discussion}
+\include{chapters/ch7_conclusion}
+
+% ========== Annexes ==========
+\appendix
+\include{appendices/app_abbreviations}
+\include{appendices/app_checkpoints}
+\include{appendices/app_scripts}
+
+% ========== Bibliographie ==========
+\nocite{*}
+\printbibliography
+
+\end{document}

@@ -1,0 +1,28 @@
+\chapter{Scripts et reproduction}\label{app:scripts}
+
+\section{Entraînement}
+\begin{lstlisting}[language=bash,caption={Entraînement du réseau convolutionnel (CNN) sur MAD}]
+python scripts/train_legacy_model.py \
+  --model cnn \
+  --dataset mad \
+  --data-dir data/processed/mad \
+  --epochs 150 \
+  --batch-size 32
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={Entraînement du réseau convolutionnel récurrent (CRNN) sur MAD}]
+python scripts/train_legacy_model.py \
+  --model crnn \
+  --dataset mad \
+  --data-dir data/processed/mad \
+  --epochs 150 \
+  --batch-size 16
+\end{lstlisting}
+
+\section{Évaluation}
+\begin{lstlisting}[language=bash,caption={Évaluation d'un modèle CNN ou CRNN sur MAD}]
+python scripts/evaluate_legacy_model.py \
+  --model-path outputs/phase1/cnn_baseline.pth \
+  --dataset mad \
+  --data-dir data/processed/mad
+\end{lstlisting}

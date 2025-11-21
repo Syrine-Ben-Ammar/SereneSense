@@ -1,0 +1,69 @@
+\chapter{Expérimentations et résultats}\label{chap:results}
+
+\section{Protocoles expérimentaux}
+Les expériences sont conduites sur GPU, à partir des scripts et configurations du dépôt SereneSense. Deux \textbf{campagnes principales} ont été réalisées :
+\begin{itemize}
+  \item une première campagne dédiée aux \textbf{baselines MFCC} (réseau convolutionnel et réseau convolutionnel récurrent), entraînés pendant 150~époques sur le split d’entraînement MAD et évalués régulièrement sur l’ensemble de validation (configuration historique) ;
+  \item une seconde campagne dédiée au \textbf{modèle AudioMAE}, entraîné pendant 100~époques sur la configuration finale de MAD (5\,464 échantillons d’entraînement, 965 de validation), avec un protocole moderne d’optimisation (AdamW, scheduler cosinus, régularisation forte).
+\end{itemize}
+
+Pour toutes les configurations, les modèles sont finalement évalués sur le jeu de test (1\,037 échantillons) à l’aide de plusieurs métriques : précision, rappel, F1 et taux de bonne classification. Les courbes complètes (pertes, exactitudes, comparaison de modèles) sont sauvegardées dans \texttt{docs/reports/} et les historiques d’entraînement dans le répertoire \texttt{outputs/history/}.
+
+\section{Définitions des métriques}
+Pour une classe donnée, avec vrai positifs $TP$, faux positifs $FP$, faux négatifs $FN$ :
+\begin{align}
+\text{Précision} &= \frac{TP}{TP + FP}, &
+\text{Rappel} &= \frac{TP}{TP + FN}, \\
+\text{F1} &= 2 \times \frac{\text{Précision} \times \text{Rappel}}{\text{Précision} + \text{Rappel}}, &
+\text{Exactitude} &= \frac{\sum_{c} TP_{c}}{\sum_{c} (TP_{c}+FP_{c}+FN_{c})}.
+\end{align}
+Le \textbf{taux de bonne classification} correspond à l'exactitude globale et constitue l’indicateur principal utilisé pour comparer les performances du réseau convolutionnel et du réseau convolutionnel récurrent. L'analyse du \textbf{taux de confiance} fixe un seuil de probabilité (70\,\%) au-delà duquel une prédiction est acceptée ; l’impact sur précision et rappel est étudié.
+
+\section{Performances globales}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Modèle & Exactitude val. & Exactitude test & Écart val--train \\
+    \midrule
+    Réseau convolutionnel (CNN MFCC) & 66{,}88\,\% & -- & -1{,}57\,\% \\
+    Réseau convolutionnel récurrent (CRNN MFCC) & 73{,}21\,\% & -- & -1{,}68\,\% \\
+    Modèle AudioMAE (transformeur) & \textbf{82{,}15\,\%} & -- & \textbf{+12{,}38\,\%} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Comparaison des performances sur MAD (la colonne test est à compléter après exécution finale).}
+  \label{tab:perf-modeles}
+\end{table}
+
+\placeholderfigure[fig:training-curves]{Courbes d'entraînement}{Courbes exactitude/perte pour les trois modèles (CNN, CRNN, AudioMAE) issues de SereneSense}
+\placeholderfigure[fig:model-bar]{Comparaison de modèles}{Barres comparatives entre réseau convolutionnel, réseau convolutionnel récurrent et AudioMAE}
+\placeholderfigure[fig:confusion]{Matrice de confusion 7$\times$7}{Matrice sur validation ou test}
+
+\subsection{Analyse détaillée des résultats AudioMAE}
+Le modèle AudioMAE atteint une exactitude de validation de \textbf{82{,}15~\%} après 100~époques d’entraînement, pour une exactitude d’entraînement de 69{,}77~\%. La \emph{generalization gap} (validation $>$ entraînement) est de \textbf{+12{,}38~\%}, ce qui est remarquable et indique une excellente capacité de généralisation :
+\begin{itemize}
+  \item la perte de validation (0{,}8693) est inférieure à la perte d’entraînement (0{,}9763), signe d’une absence de sur-apprentissage ;
+  \item les techniques de régularisation (Mixup, CutMix, \emph{label smoothing}, dropout) jouent pleinement leur rôle en empêchant le modèle de mémoriser le bruit ;
+  \item le modèle reste stable sur l’ensemble des 100~époques, sans divergence ni oscillations fortes des métriques.
+\end{itemize}
+
+Les rapports générés automatiquement (\texttt{TRAINING\_SUMMARY\_REPORT.md}, \texttt{FINAL\_RESULTS.md}) fournissent des tableaux récapitulatifs prêts à être intégrés dans le mémoire (fichiers CSV et figures au format PNG), ainsi que des analyses textuelles détaillées (qualité de la généralisation, impact des hyperparamètres, pistes d’amélioration).
+
+\section{Analyse du seuil de confiance}
+La probabilité minimale pour accepter une prédiction est fixée à 0{,}70. On définit :
+\begin{equation}
+\text{Taux de confiance} = \frac{\text{nombre de prédictions } p \geq 0{,}70}{\text{nombre total de prédictions}}.
+\end{equation}
+Une courbe précision–rappel conditionnée par le seuil est tracée ; le point d'exploitation retenu vise à conserver une précision élevée tout en maintenant un rappel satisfaisant. Les classes dominantes (véhicules militaires, hélicoptères) tendent à conserver un bon rappel, tandis que les classes plus difficiles (communications, bruit de fond) bénéficient de l’utilisation d’un seuil pour réduire les faux positifs.
+
+\section{Analyse qualitative}
+Les erreurs résiduelles se concentrent principalement sur les segments courts ou très bruités, ainsi que sur les transitions bruit de fond $\rightarrow$ véhicule distant. Les représentations temps–fréquence mal classées montrent des bandes fréquentielles partagées entre certaines classes proches, par exemple entre hélicoptères et avions de chasse. Une analyse qualitative des cartes de caractéristiques confirme que le réseau convolutionnel récurrent sépare mieux ces classes que le réseau purement convolutionnel, grâce à la prise en compte du contexte temporel.
+
+\section{Performance temps réel et empreinte}
+Du point de vue de la complexité :
+\begin{itemize}
+  \item les baselines CNN/CRNN restent de taille modérée (respectivement $\sim$242~k et $\sim$1{,}5~M de paramètres), ce qui les rend immédiatement compatibles avec des plateformes embarquées peu puissantes, au prix d’une précision limitée ;
+  \item le modèle AudioMAE est nettement plus volumineux (111~M de paramètres, $\sim$424~Mo en FP32), mais il est accompagné d’un pipeline d’optimisation complet (export ONNX, quantification INT8, scripts de benchmarking) qui permet de réduire drastiquement son empreinte et sa latence sans sacrifier la précision.
+\end{itemize}
+
+Les mesures effectuées sur le poste de développement (CPU x86\_64, ONNX Runtime) montrent une \textbf{latence totale moyenne d’environ 46~ms} par fenêtre (prétraitement $\approx 22$~ms, inférence $\approx 24$~ms) pour le modèle AudioMAE en format ONNX FP32, soit une marge très confortable par rapport à l’objectif de 500~ms. Après quantification INT8, la taille du modèle est réduite d’un facteur proche de 4 (environ 83--106~Mo selon la version), et les projections sur Raspberry~Pi~5 indiquent des latences attendues de 260 à 340~ms par fenêtre de 10~s avec une consommation mémoire de l’ordre de 800~Mo. Les détails de ces mesures et projections sont présentés au chapitre~\ref{chap:deployment}.

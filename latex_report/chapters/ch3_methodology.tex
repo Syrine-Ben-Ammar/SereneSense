@@ -1,0 +1,146 @@
+\chapter{Méthodologie et architectures}\label{chap:methodology}
+
+\section{Approche globale}
+La méthodologie adoptée dans ce projet est volontairement \textbf{incrémentale} et s’articule autour de trois niveaux d’architecture, en cohérence avec le dépôt de code SereneSense :
+\begin{enumerate}
+  \item \textbf{Phase~1~: baselines MFCC (CNN/CRNN).} Concevoir d’abord un modèle de base de type réseau de neurones convolutionnel exploitant des tenseurs MFCC (avec coefficients delta et delta-delta), puis enrichir cette architecture par l’ajout de couches récurrentes bidirectionnelles (CRNN) afin de mieux modéliser la dimension temporelle. Ces modèles constituent les \emph{baselines historiques} reproduisant et améliorant les premiers travaux réalisés sur MAD.
+  \item \textbf{Phase~2~: modèle transformeur AudioMAE.} Passer ensuite à une architecture moderne de type transformeur, AudioMAE (\emph{Masked Autoencoders that Listen}), appliquée à des spectrogrammes de Mel en entrée. Ce modèle représente l’état de l’art pour la classification audio et constitue la contribution principale en termes de performance.
+  \item \textbf{Phase~3~: industrialisation et déploiement.} Intégrer ces modèles dans une chaîne complète de traitement comprenant préparation des données, scripts d’entraînement, évaluation, export ONNX, quantification INT8 et déploiement sur Raspberry~Pi~5 pour l’inférence temps réel.
+\end{enumerate}
+
+Les trois familles de modèles partagent un pipeline de prétraitement cohérent (chapitre~\ref{chap:dataset}) et des outils communs (scripts Python, fichiers de configuration YAML, journaux d’entraînement), ce qui garantit la comparabilité de leurs performances et la reproductibilité des résultats.
+
+\section{Architectures étudiées}
+\subsection{Réseau de neurones convolutifs de référence}
+Le réseau convolutionnel de référence traite le tenseur d’entrée de taille $(F \times T \times 3)$ issu des coefficients MFCC, delta et delta-delta. L’architecture adopte une structure classique :
+\begin{itemize}
+  \item trois blocs \emph{convolution–normalisation–fonction d’activation} avec des noyaux de petite taille (par exemple $3\times3$) ;
+  \item des couches de sous-échantillonnage (max-pooling) pour réduire progressivement la dimension spatiale et extraire les caractéristiques les plus pertinentes ;
+  \item un aplatissement des cartes de caractéristiques suivi d’une ou plusieurs couches entièrement connectées ;
+  \item une couche de sortie de dimension égale au nombre de classes (sept dans le cas de MAD), avec une activation \emph{softmax}.
+\end{itemize}
+
+Ce modèle compte de l’ordre de quelques centaines de milliers de paramètres (environ 242~k dans la configuration retenue) et constitue la base de comparaison pour la suite. Dans le cadre du projet, il est ré-implémenté de manière modulaire dans le dossier \texttt{src/core/models/legacy}, avec une configuration entièrement décrite dans \texttt{configs/models/legacy\_cnn\_mfcc.yaml}.
+
+\placeholderfigure[fig:cnn-arch]{Architecture du réseau convolutionnel}{Schéma simplifié du réseau convolutionnel (blocs convolution–pooling puis couches denses)}
+
+\subsection{Réseau convolutionnel récurrent}
+Le réseau convolutionnel récurrent reprend la partie convolutionnelle précédente pour l’extraction de caractéristiques locales, puis ajoute des couches récurrentes pour modéliser les dépendances temporelles :
+\begin{itemize}
+  \item les cartes de caractéristiques issues des convolutions sont réorganisées sous forme de séquence temporelle ;
+  \item deux couches de réseaux de neurones récurrents bidirectionnels (par exemple BiLSTM) traitent cette séquence afin de capturer les transitions et la dynamique des événements sonores ;
+  \item une couche entièrement connectée et une couche de sortie \emph{softmax} produisent les probabilités associées aux sept classes.
+\end{itemize}
+
+Ce modèle comporte davantage de paramètres que le réseau purement convolutionnel (environ 1{,}5~M de paramètres dans la configuration retenue), mais permet une meilleure prise en compte de la structure temporelle des sons militaires. Comme pour le CNN, l’implémentation est factorisée dans le code (\texttt{CNNMFCCModel}, \texttt{CRNNMFCCModel}) et entièrement pilotée par un fichier YAML (\texttt{legacy\_crnn\_mfcc.yaml}), ce qui facilite la reproductibilité des expériences.
+
+\placeholderfigure[fig:crnn-arch]{Architecture du réseau convolutionnel récurrent}{Schéma simplifié combinant blocs convolutionnels et couches récurrentes bidirectionnelles}
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Modèle & Paramètres & Entrée & Particularités \\
+    \midrule
+    Réseau convolutionnel & \textasciitilde242\,K & MFCC + delta + delta-delta & Convolution + sous-échantillonnage \\
+    Réseau convolutionnel récurrent & \textasciitilde1{,}5\,M & MFCC + delta + delta-delta & Convolution + BiLSTM bidirectionnel \\
+    \bottomrule
+  \end{tabular}
+  \caption{Spécifications des architectures étudiées.}
+  \label{tab:modeles}
+\end{table}
+
+\subsection{Modèle AudioMAE : transformeur pour spectrogrammes}
+La contribution majeure du projet est l’adoption d’un modèle \textbf{AudioMAE} (\emph{Audio Masked Autoencoder}), inspiré des transformeurs de type Vision Transformer (ViT) et adapté à l’audio. Contrairement aux baselines MFCC, ce modèle opère directement sur des spectrogrammes de Mel bidimensionnels de taille $128\times128$ calculés à partir de segments audio de 10~secondes.
+
+L’architecture se décompose en deux parties :
+\begin{itemize}
+  \item un \textbf{encodeur} transformeur profond (12 couches, dimension d’embedding 768, 12 têtes d’attention) opérant sur une séquence de patchs $16\times16$ extraits du spectrogramme de Mel ;
+  \item un \textbf{décodage} utilisé en phase de pré-entraînement (8 couches, dimension 512, 16 têtes) qui permet de reconstruire les patchs masqués ; pour la classification supervisée sur MAD, la tête de classification est branchée directement sur le jeton de classification (\texttt{[CLS]}) en sortie de l’encodeur.
+\end{itemize}
+
+Le modèle complet compte environ 111~millions de paramètres. Il est implémenté dans le module \texttt{src/core/models/audioMAE}, et les hyperparamètres sont définis dans le fichier \texttt{configs/models/audioMAE.yaml}. Le choix de cette architecture se justifie par :
+\begin{itemize}
+  \item sa capacité à capturer des dépendances de long terme dans les séquences audio (10~secondes) grâce au mécanisme d’attention ;
+  \item l’utilisation de représentations apprises (spectrogrammes de Mel + embeddings) mieux adaptées que des descripteurs strictement fixés comme les MFCC ;
+  \item la possibilité de réutiliser les mêmes blocs pour un futur pré-entraînement auto-supervisé sur de grandes bases audio (AudioSet, FSD50K).
+\end{itemize}
+
+\section{Fonction de coût et métrique principale}
+La tâche étant une classification multi-classes, la fonction de coût utilisée est l’entropie croisée catégorielle. Pour une observation donnée, avec un vecteur cible $y$ et un vecteur de probabilités prédites $p$, la perte s’écrit :
+\begin{equation}
+\mathcal{L}_{\text{CE}} = - \sum_{c=1}^{C} y_{c} \log p_{c},
+\end{equation}
+où $C$ est le nombre de classes, $y_{c}$ l’indicateur de classe (égal à 1 pour la classe correcte, 0 sinon) et $p_{c}$ la probabilité prédite pour la classe $c$.
+
+La métrique principale utilisée pour comparer les modèles est le \textbf{taux de bonne classification}, défini comme la proportion de prédictions correctes sur un ensemble donné :
+\begin{equation}
+\text{Taux de bonne classification} = \frac{N_{\text{correct}}}{N_{\text{total}}},
+\end{equation}
+où $N_{\text{correct}}$ est le nombre de signaux correctement classés et $N_{\text{total}}$ le nombre total de signaux évalués.
+
+\section{Optimisation et calendriers d'apprentissage}
+L’optimisation des paramètres des réseaux CNN/CRNN est réalisée à l’aide de l’algorithme Adam. Pour un paramètre $w$ et un gradient $g_{t}$ à l’itération $t$, les mises à jour sont données par :
+\begin{equation}
+\begin{aligned}
+m_{t} &= \beta_{1} m_{t-1} + (1-\beta_{1}) g_{t}, \\
+v_{t} &= \beta_{2} v_{t-1} + (1-\beta_{2}) g_{t}^{2}, \\
+\hat{m}_{t} &= \frac{m_{t}}{1-\beta_{1}^{t}}, \quad
+\hat{v}_{t} = \frac{v_{t}}{1-\beta_{2}^{t}}, \\
+w_{t+1} &= w_{t} - \eta \, \frac{\hat{m}_{t}}{\sqrt{\hat{v}_{t}} + \epsilon},
+\end{aligned}
+\end{equation}
+où $\beta_{1}$ et $\beta_{2}$ sont les coefficients de moyennes mobiles, $\eta$ le taux d’apprentissage et $\epsilon$ un terme de stabilisation numérique.
+
+Pour le modèle AudioMAE, un schéma plus avancé est adopté, conformément à la configuration détaillée dans \texttt{TRAINING\_SUMMARY\_REPORT.md} :
+\begin{itemize}
+  \item optimiseur AdamW (taux d’apprentissage initial $1\times 10^{-4}$, \emph{weight decay} 0{,}05) ;
+  \item plan de \emph{learning rate} de type \textbf{cosine annealing} avec redémarrages, et phase de \emph{warm-up} en début d’entraînement ;
+  \item entraînement sur 100~époques avec taille de lot 16 sur GPU.
+\end{itemize}
+
+Le schéma d’optimisation est couplé à des techniques de régularisation fortes (Mixup, CutMix, \emph{label smoothing}, dropout), ce qui explique le comportement de généralisation particulièrement favorable observé pour AudioMAE (validation mieux performante que l’entraînement).
+
+\section{Hyperparamètres clés}
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}lcc@{}}
+    \toprule
+    Hyperparamètre & Valeur & Commentaire \\
+    \midrule
+    Taux d'apprentissage initial & $1\times10^{-3}$ & Optimiseur Adam \\
+    Taille de lot & 32 & Nombre d'exemples par itération \\
+    Nombre d'époques & 150 & Entraînement pour CNN et CRNN \\
+    Facteur de \emph{dropout} & $0{,}5$ & Régularisation sur les couches denses \\
+    \bottomrule
+  \end{tabular}
+  \caption{Hyperparamètres d'entraînement utilisés pour les modèles CNN/CRNN.}
+  \label{tab:hyperparametres}
+\end{table}
+
+Pour AudioMAE, les hyperparamètres clés sont les suivants (configuration SereneSense) :
+\begin{itemize}
+  \item \textbf{Entrée} : spectrogrammes de Mel $128\times128$ calculés sur des segments de 10~secondes (16~kHz, FFT 1024, pas de 160~échantillons) ;
+  \item \textbf{Architecture} : encodeur ViT 12 couches (768 dimensions, 12 têtes), décodeur 8 couches (512 dimensions, 16 têtes), taille de patch $16\times16$ ;
+  \item \textbf{Entraînement} : 100~époques, taille de lot 16, AdamW, scheduler cosinus avec redémarrages ;
+  \item \textbf{Régularisation} : Mixup ($\alpha = 0{,}8$), CutMix ($\alpha = 1{,}0$), \emph{label smoothing} 0{,}1, dropout 0{,}5, augmentations de type SpecAugment sur les spectrogrammes.
+\end{itemize}
+
+\section{Procédure d'entraînement}
+\begin{algorithm}[H]
+  \DontPrintSemicolon
+  \SetAlgoLined
+  \KwIn{Tenseurs MFCC $X$, étiquettes $Y$, nombre d'époques $T$}
+  \For{$t \gets 1$ \KwTo $T$}{
+    Mélanger les mini-batchs\;
+    \For{chaque batch $(x_{b}, y_{b})$}{
+      Appliquer les augmentations et normaliser\;
+      Propagation avant, calcul des logits\;
+      Calculer la perte $\mathcal{L}_{\text{CE}}$\;
+      Rétropropagation, mise à jour des paramètres avec Adam\;
+    }
+    Évaluer sur validation toutes les $k$ époques\;
+  }
+  \caption{Procédure d'entraînement générique.}
+  \label{alg:entrainement}
+\end{algorithm}

@@ -1,0 +1,44 @@
+\chapter{Discussion et analyse critique}\label{chap:discussion}
+
+\section{Bilan par rapport aux objectifs}
+Les objectifs formulés en introduction portaient sur la mise en place d’un prototype de classification sonore pour le rover NOMAD, l’évaluation d’architectures d’apprentissage profond adaptées à l’audio (réseaux convolutionnels, réseaux convolutionnels récurrents et, dans la phase la plus récente, un modèle de type transformeur AudioMAE) et l’étude de la faisabilité d’un déploiement embarqué sur Raspberry~Pi~5.
+
+Sur ces différents volets, le projet a permis d’atteindre plusieurs jalons importants :
+\begin{itemize}
+  \item \textbf{Baselines MFCC (CNN/CRNN).} Les architectures historiques basées sur des tenseurs MFCC (avec coefficients delta et delta-delta) ont été ré-implémentées proprement dans le dépôt SereneSense (\texttt{src/core/models/legacy}) et entraînées de manière systématique. Les résultats de validation obtenus (66{,}88~\% pour le CNN, 73{,}21~\% pour le CRNN) confirment l’intérêt d’une modélisation temporelle explicite via les couches récurrentes.
+  \item \textbf{Modèle AudioMAE.} L’introduction du modèle transformeur AudioMAE, opérant sur des spectrogrammes de Mel de taille $128\times128$ sur 10~secondes d’audio, constitue la principale avancée en termes de performance, avec une exactitude de validation de 82{,}15~\% et une généralisation remarquable (validation meilleure que l’entraînement).
+  \item \textbf{Chaîne logicielle et reproductibilité.} L’ensemble du pipeline (préparation des données, entraînement, évaluation, génération de rapports, export ONNX, quantification, scripts de déploiement) a été industrialisé dans un projet Python structuré, accompagné de tests, de configurations YAML et de documentation.
+  \item \textbf{Préparation au déploiement embarqué.} Un plan de déploiement détaillé, ainsi que des scripts prêts à l’emploi pour Raspberry~Pi~5, ont été réalisés et validés sur poste de développement, avec des projections de performance réalistes démontrant la faisabilité temps réel.
+\end{itemize}
+
+La chaîne de prétraitement basée sur les MFCC, delta et delta-delta a été déterminante pour les baselines CNN/CRNN, tandis que les spectrogrammes de Mel et les mécanismes d’attention d’AudioMAE se sont révélés plus adaptés à la capture de motifs complexes sur des segments audio longs propres aux scènes militaires.
+
+\section{Comparaison à l'état de l'art}
+Par rapport aux approches les plus récentes de la littérature (modèles pré-entraînés de type YamNet ou architectures de type transformeur pour l’audio~\cite{gong2021ast,huang2022audiomae,chen2022beats}), le projet se situe dans une démarche progressive :
+\begin{itemize}
+  \item dans un premier temps, les baselines CNN/CRNN, bien que plus simples, ont permis d’obtenir des performances solides sur MAD (66{,}88~\% et 73{,}21~\%), en ligne avec ce que l’on peut attendre de réseaux supervisés entraînés sur un dataset de taille moyenne ;
+  \item dans un second temps, l’adoption d’AudioMAE rapproche le système de l’état de l’art en classification audio, avec une exactitude de 82{,}15~\% malgré l’absence de pré-entraînement massif sur des bases de type AudioSet.
+\end{itemize}
+
+Les résultats obtenus montrent que les transformeurs pour l’audio apportent un gain significatif (+8{,}94~points par rapport au CRNN) tout en restant compatibles avec un déploiement embarqué après optimisation (quantification, ONNX Runtime). Ils constituent ainsi un compromis intéressant entre précision, robustesse et complexité pour des applications de surveillance acoustique militaire.
+
+\section{Limites et risques}
+\begin{itemize}
+  \item \textbf{Variabilité acoustique} : bien que riche, la base MAD ne couvre pas toutes les conditions météorologiques, topographiques ou d’équipement microphonique rencontrées sur le terrain ; une collecte complémentaire sur rover NOMAD sera nécessaire pour couvrir davantage de cas réels.
+  \item \textbf{Classes proches} : une confusion résiduelle subsiste entre certaines classes spectrales proches (par exemple hélicoptères et avions de chasse, véhicules militaires et camions), en particulier pour des sons éloignés ou noyés dans le bruit de fond.
+  \item \textbf{Événements rares} : des événements impulsifs rares (tirs, explosions) peuvent être sous-représentés dans la base de données, ce qui limite la capacité du modèle à généraliser sur ces cas sans sur-apprentissage ou données supplémentaires.
+  \item \textbf{Pré-entraînement absent} : le modèle AudioMAE a été entraîné \emph{from scratch} sur MAD, ce qui plafonne vraisemblablement la performance autour de 82--85~\%; un pré-entraînement auto-supervisé sur de grandes bases publiques pourrait encore améliorer les résultats.
+  \item \textbf{Déploiement partiellement évalué} : la faisabilité embarquée a été étudiée en détail et validée par des mesures sur poste de développement, mais des mesures complètes sur carte Raspberry~Pi~5 et en conditions de terrain restent à réaliser pour finaliser la validation.
+\end{itemize}
+
+\section{Considérations éthiques et opérationnelles}
+L'usage sur des scénarios de surveillance militaire impose : (i) transparence sur les limites du modèle, (ii) calibration fine du seuil pour éviter des décisions erronées, (iii) conformité aux règles d'engagement et à la protection des civils, (iv) journalisation et auditabilité des prédictions.
+
+\section{Perspectives techniques}
+\begin{itemize}
+  \item \textbf{Enrichissement de la base de données} : collecter des enregistrements supplémentaires dans des conditions variées (météo, types de microphones, distances, scénarios réels sur NOMAD) afin d’améliorer la robustesse du modèle et de mieux couvrir les différentes situations opérationnelles.
+  \item \textbf{Amélioration des modèles} : explorer des variantes plus profondes de réseaux convolutionnels ou des architectures hybrides plus légères, ainsi que des techniques de pondération des classes ou de pertes focales pour traiter les déséquilibres et mieux gérer les classes rares.
+  \item \textbf{Pré-entraînement et transfert} : étudier l’apport de modèles pré-entraînés de type transformeur pour l’audio (AudioMAE pré-entraîné, BEATs, AST), en les comparant systématiquement aux baselines CNN/CRNN et au modèle AudioMAE entraîné uniquement sur MAD.
+  \item \textbf{Détection continue} : mettre en place une détection sur fenêtres plus courtes (par exemple 2 à 3~secondes) avec agrégation des décisions sur une fenêtre glissante, afin de permettre une réaction plus précoce aux événements sonores et une meilleure localisation temporelle.
+  \item \textbf{Intégration système} : intégrer le module de détection sonore avec les autres capteurs du rover NOMAD (vision, GPS, IMU) dans une logique de fusion de capteurs, afin de fournir une perception multimodale plus fiable.
+\end{itemize}

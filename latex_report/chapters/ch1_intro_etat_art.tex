@@ -1,0 +1,268 @@
+\chapter{Introduction générale et état de l'art}
+
+\section{Introduction générale}
+L’évolution rapide des technologies d’intelligence artificielle et de traitement du signal a profondément transformé les domaines de la surveillance, de la robotique et de la sécurité. Les systèmes autonomes capables d’analyser leur environnement et de prendre des décisions en temps réel constituent aujourd’hui un enjeu majeur dans les applications civiles et militaires.
+
+Dans ce contexte, le présent projet s’inscrit dans le cadre du développement du rover \textbf{NOMAD}, un véhicule terrestre autonome conçu par l’entreprise Avionav. Contrairement aux approches classiques basées sur la vision artificielle, ce projet vise à doter ce rover d’un module intelligent de détection et de classification des sons, afin de lui permettre d’identifier et d’interpréter en temps réel la présence de véhicules militaires, de mouvements humains suspects ou de toute activité potentiellement dangereuse à proximité de zones sensibles. Une telle capacité renforce l’autonomie du système et ouvre la voie à des applications variées, notamment dans les missions de surveillance des zones frontalières et la détection d’activités anormales à caractère militaire, même dans des environnements où la visibilité est limitée (obscurité, fumée, obstacles).
+
+Le projet repose sur l’analyse de signaux audio et l’exploitation d’algorithmes d’apprentissage profond pour reconnaître diverses classes sonores telles que les bruits de moteurs, les communications radio, les coups de feu, les pas, les explosions ou les activités aériennes. Une base de données audio dédiée est élaborée et traitée afin de permettre l’entraînement, la validation et l’évaluation des modèles de classification.
+
+Ce travail soulève plusieurs défis techniques, notamment la gestion du bruit ambiant, la diversité des signaux enregistrés et la nécessité de concevoir un modèle performant, généralisable et embarquable. Ces contraintes ont guidé les choix méthodologiques à chaque étape du projet, de la préparation des données à la sélection des architectures de réseaux de neurones.
+
+\section{Présentation de l'organisme d'accueil}
+Le projet de fin d’études a été réalisé au sein de la société tunisienne \textbf{Avionav}, spécialisée dans la fabrication d’avions légers. Cette entreprise se distingue à la fois par son expertise technique et par son positionnement unique sur le marché national.
+
+\subsection{Présentation de la société}
+Avionav est une société à responsabilité limitée opérant dans l’industrie aéronautique. Elle conçoit et fabrique des avions légers destinés à différents usages civils et professionnels. Le tableau~\ref{tab:identite-avionav} synthétise les principales informations relatives à l’entreprise.
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Élément & Valeur \\
+    \midrule
+    Nom de l'entreprise & Avionav \\
+    Domaine d'activité & Industrie aéronautique (avions légers) \\
+    Statut juridique & Société à responsabilité limitée (SARL) \\
+    Produits & Avions légers en composite et aluminium \\
+    Site internet & \url{https://www.avionav.net} \\
+    Responsable & Foued El Kamel \\
+    \bottomrule
+  \end{tabular}
+  \caption{Identité de la société Avionav.}
+  \label{tab:identite-avionav}
+\end{table}
+
+\placeholderfigure[fig:logo-avionav]{Logo Avionav}{Logo officiel de la société Avionav}
+
+\subsection{Domaine d’activité}
+Au cours de son développement dans le secteur de la construction aéronautique, Avionav s’est imposée sur le marché grâce à son savoir-faire technologique et à son positionnement en tant que seul acteur tunisien spécialisé dans la fabrication d’avions légers. L’atelier de production est particulièrement orienté vers :
+\begin{itemize}
+  \item les matériaux composites à haute performance,
+  \item la tôlerie fine et industrielle,
+  \item l’usinage de précision,
+  \item la peinture et l’assemblage de structures aéronautiques.
+\end{itemize}
+
+\subsection{Services et produits}
+Avionav propose principalement deux modèles d’avions distincts, offrant une gamme de produits adaptée à différents besoins :
+\begin{itemize}
+  \item un modèle en composite de fibre de carbone, baptisé \emph{Rally},
+  \item un modèle en aluminium, baptisé \emph{Storm}.
+\end{itemize}
+
+\placeholderfigure[fig:avion-rally]{Avion Rally}{Avion Rally de la société Avionav}
+\placeholderfigure[fig:avion-storm]{Avion Storm}{Avion Storm de la société Avionav}
+
+\subsection{Historique de la société}
+L’évolution d’Avionav peut être résumée par les jalons suivants :
+\begin{itemize}
+  \item 2007 : fondation de l’entreprise Storm Aircraft par un groupe d’entrepreneurs italiens ;
+  \item 2011 : création de la start-up Oxygène Aeronautics par les frères El Kamel ;
+  \item 2014 : acquisition complète de Storm Aircraft et changement de nom en Avionav ;
+  \item 2015 : exportation vers l’Italie d’avions légers en aluminium et en composite ;
+  \item 2016 : participation à la fabrication d’un aéronef amphibie à quatre places en partenariat avec Evada Aircraft ;
+  \item 2017 : exportation de plusieurs dizaines d’avions vers l’Europe, l’Asie et l’Afrique ;
+  \item 2020 : lancement d’un programme d’expansion des ateliers de fabrication et de programmation, avec recrutement de nouvelles compétences.
+\end{itemize}
+
+\section{Contexte général}
+Au cours des dernières années, les systèmes de surveillance et de reconnaissance autonomes ont connu un développement rapide, porté par les progrès de la robotique, de l’intelligence artificielle et des capteurs embarqués. Ces systèmes sont déployés dans de nombreux domaines : exploration scientifique, surveillance militaire, sécurité civile ou encore suivi environnemental.
+
+Les plateformes robotiques mobiles, telles que les rovers et les systèmes de type Nomad, sont capables d’évoluer sur des terrains complexes, isolés ou difficilement accessibles. Elles intègrent traditionnellement des capteurs visuels, infrarouges ou radar. La perception acoustique, longtemps sous-exploitée, émerge aujourd’hui comme un moyen complémentaire particulièrement intéressant, notamment lorsque la visibilité est limitée ou dégradée.
+
+Dans ce cadre, doter un rover tel que NOMAD d’une capacité de détection et de classification acoustique constitue un atout majeur pour la surveillance et la reconnaissance de situations à risque, indépendamment des conditions météo ou de luminosité.
+
+\section{Présentation du projet}
+Le projet intitulé \og Détection sonore pour le véhicule NOMAD \fg{} consiste à mettre en place un rover mobile et autonome intégrant un système intelligent de détection et de classification sonore basé sur des techniques d’intelligence artificielle. Ce véhicule terrestre doit être capable d’identifier et d’interpréter en temps réel des événements sonores d’intérêt, tels que :
+\begin{itemize}
+  \item la présence de véhicules militaires,
+  \item des mouvements humains suspects,
+  \item des tirs d’armes à feu ou des explosions,
+  \item des activités aériennes (hélicoptères, avions de chasse),
+  \item des communications radio ou vocales.
+\end{itemize}
+
+Le prototype envisagé comprend :
+\begin{itemize}
+  \item une plateforme mobile de type Nomad (robot tout-terrain autonome) ;
+  \item des capteurs acoustiques (microphones omnidirectionnels) ;
+  \item un modèle d’apprentissage profond de type réseau de neurones convolutionnel ou réseau de neurones convolutionnel récurrent pour la détection et la classification ;
+  \item un système embarqué à ressources limitées (par exemple Raspberry~Pi~5 ou Jetson Xavier).
+\end{itemize}
+
+\section{Problématique}
+Malgré les progrès significatifs en robotique et en intelligence artificielle, la plupart des systèmes de surveillance actuels reposent principalement sur la vision artificielle et exploitent peu la perception acoustique. La question centrale est donc de savoir comment mettre en place un système acoustique autonome et mobile répondant aux contraintes du terrain.
+
+Plusieurs défis scientifiques et techniques se posent :
+\begin{itemize}
+  \item comment choisir ou constituer une base de données représentative du contexte de surveillance (sons militaires, bruits de moteurs, tirs, explosions) pour entraîner efficacement les modèles ;
+  \item quelles architectures de modèles d’apprentissage profond adopter pour garantir de bonnes performances de classification malgré la variabilité des conditions acoustiques ;
+  \item comment optimiser les modèles pour un déploiement embarqué, en respectant les contraintes de mémoire, de calcul et de consommation énergétique.
+\end{itemize}
+
+\section{Objectifs du projet}
+L’objectif global du projet est la mise en place d’un prototype de robot NOMAD de surveillance acoustique intégrant un module intelligent de détection et de classification sonore basé sur l’apprentissage profond.
+
+Pour atteindre cet objectif, plusieurs objectifs spécifiques sont définis :
+\begin{itemize}
+  \item sélectionner ou construire une base de données sonore représentative des sons cibles (véhicules, hélicoptères, bombardements, tirs, etc.) ;
+  \item concevoir et entraîner deux architectures d’apprentissage profond, l’une de type réseau de neurones convolutionnel et l’autre de type réseau de neurones convolutionnel récurrent ;
+  \item évaluer les performances des modèles à l’aide d’indicateurs quantitatifs (taux de bonne classification, matrices de confusion, courbes d’apprentissage) ;
+  \item choisir le modèle le plus adapté à une implémentation sur carte embarquée (Raspberry~Pi~5 ou Jetson Xavier) ;
+  \item préparer un prototype fonctionnel capable de détecter et de classifier des sons en temps réel pour un rover de surveillance.
+\end{itemize}
+
+\section{Plan de travail}
+Le projet est organisé de manière progressive, selon les principales tâches suivantes :
+\begin{itemize}
+  \item recherche bibliographique et technologique sur la robotique mobile et la classification sonore ;
+  \item collecte, préparation et nettoyage des données audio ;
+  \item conception des architectures de réseaux de neurones ;
+  \item entraînement et validation des modèles ;
+  \item évaluation et comparaison des performances ;
+  \item préparation à l’implémentation embarquée ;
+  \item analyse des résultats et rédaction du mémoire.
+\end{itemize}
+
+\section{Robots mobiles et systèmes de type Nomad}
+Les robots mobiles autonomes, tels que les rovers et les robots de type Nomad, constituent le socle de nombreux systèmes d’exploration et de surveillance. Ils sont conçus pour se déplacer dans des environnements hostiles ou difficiles d’accès, tout en emportant des capteurs et des systèmes de communication.
+
+\subsection{Robots de type rover}
+Les rovers sont des véhicules robotiques terrestres conçus pour se déplacer sur des terrains souvent accidentés ou non structurés afin d’explorer, d’inspecter ou d’effectuer des tâches dans des environnements dangereux ou inaccessibles. Ils sont généralement équipés de roues ou de chenilles, ainsi que de capteurs embarqués (caméras, capteurs inertiels, systèmes de navigation).
+
+Parmi leurs principaux domaines d’application, on peut citer :
+\begin{itemize}
+  \item l’exploration spatiale (par exemple Sojourner, Spirit, Perseverance) ;
+  \item les missions de sauvetage en zones sinistrées (PackBot) ;
+  \item la recherche environnementale et agricole (TerraSentia) ;
+  \item les applications militaires et sécuritaires (TALON, Ripsaw, Crusher).
+\end{itemize}
+
+\placeholderfigure[fig:rover-exemples]{Exemples de rovers}{Illustrations de rovers d’exploration, de sauvetage et militaires}
+
+\subsection{Robots de type Nomad}
+Les robots de type Nomad sont conçus pour se déplacer de manière autonome sur de grandes distances dans des environnements complexes, imprévisibles et hostiles. Ils combinent :
+\begin{itemize}
+  \item des capteurs variés (caméras, LIDAR, GPS, microphones, infrarouge) ;
+  \item une intelligence embarquée pour la planification, la navigation et la prise de décision ;
+  \item des systèmes de locomotion robustes (roues, chenilles ou pattes) adaptés aux terrains difficiles ;
+  \item des moyens de communication longue portée.
+\end{itemize}
+
+Ces plateformes sont utilisées pour l’exploration scientifique terrestre (déserts, pôles, volcans), la surveillance environnementale (par exemple Wave Glider pour l’océanographie) et la défense (par exemple GuardBot pour la surveillance de zones sensibles). Le projet NOMAD d’Avionav s’inscrit dans cette lignée, en mettant l’accent sur la perception acoustique.
+
+\section{Systèmes de surveillance acoustique existants}
+Contrairement aux systèmes robotiques précédents, les solutions de surveillance acoustique existantes se concentrent sur la détection et la classification de sons, indépendamment de la mobilité de la plateforme. Elles sont utilisées dans des domaines variés : sécurité, défense, surveillance environnementale ou industrielle.
+
+\subsection{Systèmes de détection acoustique de tirs}
+Les systèmes de détection de tirs sont capables de détecter le son d’un tir et de localiser son origine. Ils s’appuient sur des réseaux de microphones et des techniques de triangulation et de corrélation temporelle. Parmi les exemples connus, on peut citer :
+\begin{itemize}
+  \item \emph{Boomerang}, développé pour les véhicules militaires américains, capable de détecter en temps réel la direction et la distance d’un tir, même en environnement bruyant ;
+  \item \emph{ShotSpotter}, réseau de capteurs installé dans plusieurs villes pour repérer et localiser les coups de feu en milieu urbain.
+\end{itemize}
+
+\placeholderfigure[fig:boomerang]{Système Boomerang}{Exemple de système de détection acoustique de tirs}
+\placeholderfigure[fig:shotspotter]{Système ShotSpotter}{Exemple de réseau urbain de détection de tirs}
+
+\subsection{Systèmes de détection sous-marins}
+Les systèmes acoustiques sous-marins (sonars) sont utilisés pour surveiller et détecter des objets ou des événements dans l’environnement marin. Ils reposent sur des réseaux d’hydrophones capables de capter les ondes acoustiques émises par des sous-marins, des navires ou d’autres sources. On distingue :
+\begin{itemize}
+  \item les sonars passifs, qui se contentent d’écouter les bruits produits par les cibles ;
+  \item les sonars actifs, qui émettent un signal acoustique et analysent l’écho réfléchi.
+\end{itemize}
+
+\subsection{Systèmes de surveillance environnementale et industrielle}
+Les systèmes acoustiques sont également employés pour surveiller des zones naturelles ou industrielles sensibles. Ils permettent, par exemple, de détecter des mouvements sismiques, des fuites de gaz ou des pollutions sonores. Des dispositifs comme \emph{AudioMoth} sont utilisés en recherche environnementale pour enregistrer des sons d’animaux ou surveiller des forêts tropicales.
+
+\placeholderfigure[fig:audiomoth]{Dispositif AudioMoth}{Exemple de capteur acoustique pour la surveillance environnementale}
+
+\subsection{Systèmes mobiles de surveillance acoustique}
+Enfin, certaines plateformes robotiques récentes embarquent des capteurs acoustiques afin de compléter la perception visuelle ou infrarouge. Des drones intégrant des modules de détection acoustique peuvent ainsi localiser des bruits de moteurs ou d’autres sources sonores depuis une plateforme aérienne.
+
+\section{Analyse critique de l’existant}
+L’analyse des systèmes existants montre que la détection acoustique est déjà utilisée dans de nombreux domaines (défense, industrie, environnement), mais présente plusieurs limites lorsqu’il s’agit de l’intégrer dans des plateformes mobiles autonomes :
+\begin{itemize}
+  \item la majorité des systèmes robotiques reposent sur la vision et le GPS, avec une intégration encore limitée de capteurs acoustiques ;
+  \item les dispositifs acoustiques sont souvent conçus pour des environnements relativement contrôlés, ce qui complique la reconnaissance en milieu fortement bruité ;
+  \item l’autonomie énergétique reste un défi pour les dispositifs de surveillance acoustique en continu ;
+  \item l’adaptation à des situations dynamiques (sons changeants, milieux ouverts) est encore perfectible.
+\end{itemize}
+
+Ces constats justifient le développement d’un système mobile autonome combinant mobilité, perception acoustique et traitement embarqué, comme proposé dans le projet NOMAD.
+
+\section{Approches de classification sonore}
+Les approches de classification sonore peuvent être regroupées en deux grandes familles : les approches classiques fondées sur l’extraction manuelle de caractéristiques, et les approches récentes fondées sur l’apprentissage profond.
+
+\subsection{Approches classiques fondées sur l’apprentissage automatique}
+Les approches classiques reposent sur l’extraction manuelle de descripteurs acoustiques (par exemple les coefficients cepstraux en fréquence de Mel, les spectrogrammes ou le taux de passages par zéro), suivie de l’utilisation de classificateurs supervisés comme les machines à vecteurs de support ou les forêts aléatoires.
+
+\subsubsection{Coefficients cepstraux et machine à vecteurs de support}
+La combinaison des coefficients cepstraux en fréquence de Mel et des machines à vecteurs de support permet d’obtenir des systèmes de classification sonore fiables et relativement peu coûteux en calcul. Plusieurs travaux récents rapportent des précisions de l’ordre de 75~\% à 90~\% selon les jeux de données considérés.
+
+\subsubsection{Forêt aléatoire}
+Les forêts aléatoires sont également largement utilisées pour la classification sonore. Elles sont robustes au bruit et faciles à entraîner, mais ne capturent pas directement la dimension temporelle des sons. Dans la littérature, des performances élevées sont rapportées pour certaines tâches spécifiques (par exemple la classification de sons cardiaques) lorsque les caractéristiques d’entrée sont bien choisies.
+
+\subsection{Approches récentes fondées sur l’apprentissage profond}
+Les approches basées sur l’apprentissage profond apprennent directement à partir de représentations temps–fréquence (spectrogrammes ou coefficients cepstraux), ce qui réduit la dépendance à l’ingénierie de caractéristiques manuelle et a permis des gains importants en classification sonore.
+
+\subsubsection{Réseaux de neurones convolutionnels}
+Les réseaux de neurones convolutionnels appliqués aux spectrogrammes audio permettent d’extraire automatiquement des motifs locaux pertinents pour la reconnaissance de sons. De nombreuses études montrent qu’ils surpassent les approches classiques sur des tâches de classification multi-classes, notamment en présence de bruit.
+
+\subsubsection{Réseaux récurrents et réseaux convolutionnels récurrents}
+Les réseaux de neurones récurrents (et leurs variantes à mémoire longue ou à unités à portes) sont adaptés aux données séquentielles et permettent de modéliser la dynamique temporelle des sons. Les architectures hybrides combinant convolutions et couches récurrentes (réseaux de neurones convolutionnels récurrents) exploitent à la fois l’information fréquentielle et temporelle, et sont particulièrement adaptées aux scènes sonores complexes.
+
+\subsubsection{Modèles pré-entraînés et transformeurs pour l’audio}
+Plus récemment, des modèles pré-entraînés sur de très grandes bases de données audio ont été proposés, tels que YamNet ou des architectures de type transformeur dédiées aux spectrogrammes audio \cite{gong2021ast,huang2022audiomae,chen2022beats}. Ces modèles exploitent des mécanismes d’attention et des stratégies d’apprentissage auto-supervisé pour obtenir des représentations riches et transférables.
+
+\section{Comparaison des approches et justification du choix}
+La comparaison des différentes approches met en évidence plusieurs compromis entre précision, complexité, capacité à modéliser la dimension temporelle et facilité de déploiement embarqué. Les méthodes classiques sont simples et légères, mais limitées dès que les scènes sonores deviennent complexes. Les architectures profondes récentes, en particulier les réseaux convolutionnels et les réseaux convolutionnels récurrents, offrent de meilleures performances au prix d’une complexité accrue.
+
+Dans le cadre de ce projet, le choix s’est porté sur deux modèles :
+\begin{itemize}
+  \item un réseau de neurones convolutionnel, pour l’extraction efficace de motifs à partir des spectrogrammes ;
+  \item un réseau de neurones convolutionnel récurrent, pour mieux capturer la dimension temporelle des sons militaires.
+\end{itemize}
+
+Cette stratégie, déjà explorée dans des travaux antérieurs sur MAD et consolidée dans le cadre du projet SereneSense \cite{benammar2025serenesense}, permet de comparer les performances des deux architectures et de sélectionner celle qui offre le meilleur compromis entre précision, robustesse et faisabilité sur carte embarquée.
+
+\section{Bases de données sonores}
+
+\subsection{Principales bases de données pour la classification sonore}
+Pour entraîner et évaluer les modèles de classification sonore, plusieurs bases de données publiques sont utilisées dans la littérature : ESC-50 pour les sons environnementaux \cite{esc50_dataset}, UrbanSound8K pour les sons urbains \cite{urbansound8k_dataset} ou AudioSet pour les scènes sonores variées \cite{gemmeke2017audioset}. Ces jeux de données constituent des références pour le benchmarking de modèles.
+
+Toutefois, ils ne couvrent pas spécifiquement les sons militaires (tirs, explosions, véhicules blindés, hélicoptères) dans des conditions de terrain réalistes.
+
+\subsection{Évaluation et choix de la base de données MAD}
+Pour ce projet, la base de données \emph{Military Audio Detection} (MAD) a été retenue \cite{kim2024mad}. Elle contient exclusivement des sons militaires et industriels pertinents pour la surveillance acoustique : bruits de moteurs, véhicules militaires, hélicoptères, avions de chasse, communications et bruits de fond.
+
+Le dataset MAD regroupe plusieurs milliers d’extraits audio répartis en sept classes et enregistrés dans des conditions proches du terrain opérationnel. Il constitue ainsi une base adaptée à l’entraînement et à l’évaluation de modèles ciblant la surveillance acoustique militaire.
+
+\section{Synthèse et solution adoptée}
+À l’issue de l’étude de l’existant, la solution adoptée repose sur :
+\begin{itemize}
+  \item l’utilisation de la base de données MAD, représentative des sons militaires dans des conditions réalistes ;
+  \item la conception et l’évaluation de deux architectures d’apprentissage profond (réseau convolutionnel et réseau convolutionnel récurrent) adaptées à la classification de spectrogrammes audio ;
+  \item l’intégration future de ces modèles dans un système embarqué sur rover NOMAD, en veillant à respecter les contraintes de latence et de consommation de ressources.
+\end{itemize}
+
+\section{Contributions du mémoire}
+Au regard de cette synthèse, les contributions concrètes de ce mémoire peuvent être résumées comme suit :
+\begin{itemize}
+  \item \textbf{Reproduction contrôlée du CNN historique}~: ré-implémentation et validation d’un réseau convolutionnel MFCC sur MAD, en reproduisant les performances de la première étude (exactitude de validation \textasciitilde66{,}88~\%) dans un code structuré et testable.
+  \item \textbf{Amélioration par réseau convolutionnel récurrent (CRNN)}~: conception, implémentation et entraînement d’un CRNN MFCC atteignant \textasciitilde73{,}21~\% d’exactitude de validation, démontrant l’apport de la modélisation temporelle explicite pour les scènes sonores militaires.
+  \item \textbf{Introduction et évaluation d’un modèle AudioMAE}~: intégration d’une architecture transformeur de type AudioMAE opérant sur des spectrogrammes de Mel 128$\times$128, entraînée sur MAD et atteignant 82{,}15~\% d’exactitude de validation, avec une excellente capacité de généralisation.
+  \item \textbf{Mise en place du pipeline SereneSense}~: développement d’un dépôt logiciel complet (préparation de données, scripts d’entraînement/évaluation, configurations YAML, rapports, visualisations) garantissant la reproductibilité des expériences et la traçabilité des résultats.
+  \item \textbf{Préparation du déploiement sur Raspberry~Pi~5}~: conception et implémentation d’une chaîne de déploiement (export ONNX, quantification INT8, scripts et documentation) démontrant la faisabilité temps réel du modèle AudioMAE sur une plateforme embarquée à ressources limitées.
+\end{itemize}
+
+\section{Structure du mémoire}
+Pour répondre à la remarque de fusion des chapitres~1 et~2, ce premier chapitre regroupe l’introduction générale, la présentation du projet et l’état de l’art technologique et scientifique. La suite du mémoire est organisée comme suit :
+\begin{description}
+  \item[Chapitre~\ref{chap:dataset}] présentation détaillée du jeu de données MAD, de sa structure, de la préparation et du prétraitement des signaux audio ;
+  \item[Chapitre~\ref{chap:methodology}] description de la méthodologie et des architectures retenues (réseau convolutionnel, réseau convolutionnel récurrent et modèle transformeur AudioMAE), ainsi que des hyperparamètres, équations utilisées et choix d’optimisation ;
+  \item[Chapitre~\ref{chap:results}] présentation des résultats expérimentaux pour les trois modèles (CNN, CRNN, AudioMAE), des métriques (taux de bonne classification, taux de confiance, matrices de confusion) et interprétation détaillée des performances et de la généralisation ;
+  \item[Chapitre~\ref{chap:deployment}] discussion de l’implémentation logicielle et du plan de déploiement sur systèmes embarqués (export ONNX, quantification INT8, préparation du déploiement sur carte Raspberry~Pi~5 et pipeline d’inférence temps réel) ;
+  \item[Chapitre~\ref{chap:discussion}] analyse critique du travail réalisé, des limites et des perspectives d’amélioration ;
+  \item[Chapitre~\ref{chap:conclusion}] conclusion générale et perspectives futures.
+\end{description}

@@ -1,0 +1,90 @@
+\chapter{Déploiement sur systèmes embarqués}\label{chap:deployment}
+
+\section{Stratégie générale}
+Le déploiement cible une carte de type Raspberry~Pi~5 (processeur ARM Cortex-A76, 8\,Go de mémoire) équipée d’un micro-casque USB. L'objectif est de conserver un taux de bonne classification élevé tout en garantissant une latence inférieure à 500~ms par fenêtre audio et une empreinte mémoire compatible avec les ressources disponibles.
+
+Au-delà d’une simple faisabilité théorique, le projet a abouti à la mise en place d’une \textbf{chaîne de déploiement complète}, décrite et implémentée dans le dépôt SereneSense :
+\begin{itemize}
+  \item scripts d’export du modèle AudioMAE depuis PyTorch vers ONNX (\texttt{export\_to\_onnx.py}) ;
+  \item quantification dynamique INT8 du modèle ONNX (\texttt{quantize\_onnx.py}) ;
+  \item validation fonctionnelle et de performance sur PC (\texttt{test\_deployment.py}, \texttt{PERFORMANCE\_REPORT.md}) ;
+  \item scripts dédiés à la préparation et au déploiement sur Raspberry~Pi~5 (\texttt{rpi\_preprocessing.py}, \texttt{rpi\_deploy.py}, \texttt{rpi\_setup.sh}) ;
+  \item documentation détaillée pour l’utilisateur final (\texttt{RPi5\_DEPLOYMENT\_GUIDE.md}, \texttt{QUICKSTART\_DEPLOYMENT.md}, \texttt{DEPLOYMENT\_SUMMARY.md}).
+\end{itemize}
+
+\section{Export et optimisation du format Open Neural Network Exchange}
+Le modèle entraîné (dans la version finale, l’architecture AudioMAE) est exporté depuis PyTorch vers le format Open Neural Network Exchange (ONNX, opset~14) en conservant des axes dynamiques pour la taille de lot. La procédure mise en place comprend :
+\begin{enumerate}
+  \item le chargement du meilleur point de contrôle (\texttt{best\_model\_audiomae\_000.pth} ou \texttt{checkpoint\_audiomae\_099.pth}) ;
+  \item la création d’un tenseur d’entrée factice de taille $(1, 1, 128, 128)$ représentant un spectrogramme de Mel normalisé ;
+  \item l’export en ONNX avec vérification automatique de la cohérence des sorties par rapport au modèle PyTorch (écart numérique $\leq 10^{-6}$).
+\end{enumerate}
+
+Une quantification post-entraînement en entiers 8 bits (INT8) est ensuite appliquée pour réduire la taille du modèle et accélérer l’inférence, tout en contrôlant la perte de précision. Les scripts de quantification génèrent deux fichiers principaux :
+\begin{itemize}
+  \item un modèle ONNX FP32 (\texttt{audiomae\_fp32.onnx}) de l’ordre de 325--424~Mo ;
+  \item un modèle quantifié INT8 (\texttt{audiomae\_int8.onnx}) d’environ 80--110~Mo, soit une réduction de taille proche de $4\times$.
+\end{itemize}
+
+\begin{table}[H]
+  \centering
+  \begin{tabular}{@{}lccc@{}}
+    \toprule
+    Format & Taille & Latence projetée & Commentaire \\
+    \midrule
+    ONNX en précision simple (FP32) & \textasciitilde325--424\,Mo & $\approx 46$~ms (PC) & Modèle exporté depuis PyTorch, référence de validation \\
+    ONNX quantifié en entiers 8 bits & \textasciitilde80--110\,Mo & 260--340~ms (RPi5, estimée) & Modèle optimisé pour l’embarqué (INT8) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Effets de la quantification et projections de performance pour AudioMAE.}
+  \label{tab:onnx-quant}
+\end{table}
+
+\placeholderfigure[fig:onnx-pipeline]{Pipeline ONNX}{Chaîne export $\rightarrow$ quantification $\rightarrow$ validation}
+
+\section{Configuration Raspberry Pi 5}
+Les étapes recommandées pour la mise en place du système sur Raspberry~Pi~5, telles que décrites dans les guides \texttt{RPi5\_DEPLOYMENT\_GUIDE.md} et \texttt{QUICKSTART\_DEPLOYMENT.md}, sont les suivantes :
+\begin{enumerate}
+  \item Installer Raspberry~Pi~OS 64 bits (Bookworm+), activer SSH et configurer un micro USB 16~kHz.
+  \item Installer les dépendances : \texttt{onnxruntime} (version ARM optimisée), \texttt{numpy}, \texttt{librosa}, \texttt{soundfile}, \texttt{scipy}, \texttt{pyaudio}, ainsi que les bibliothèques système audio nécessaires.
+  \item Transférer le modèle quantifié (\texttt{audiomae\_int8.onnx}) et les scripts d'inférence temps réel (\texttt{rpi\_preprocessing.py}, \texttt{rpi\_deploy.py}, \texttt{batch\_test.py}) dans un répertoire dédié sur la carte.
+  \item Exécuter le script d’installation \texttt{rpi\_setup.sh} qui automatise la création de l’environnement virtuel, l’installation des bibliothèques Python et les tests de vérification.
+  \item Mesurer la latence sur un nombre suffisant d’itérations et vérifier qu’elle reste compatible avec la contrainte temps réel (\(<500\)~ms par fenêtre de 10~secondes), tout en surveillant la consommation mémoire et la température.
+\end{enumerate}
+
+\placeholderfigure[fig:rpi-setup]{Installation RPi5}{Schéma du montage matériel et micro}
+
+\section{Pipeline temps réel}
+Le pipeline embarqué appliqué sur Raspberry~Pi~5 reprend fidèlement les étapes du pipeline d’entraînement, adaptées au contexte temps réel. Dans la version finale, il utilise les \textbf{spectrogrammes de Mel} associés à AudioMAE ; une version alternative basée sur les MFCC (pour les baselines CNN/CRNN) reste possible mais n’est pas détaillée ici. Le pipeline comprend :
+\begin{enumerate}
+  \item \textbf{Capture audio} : acquisition de segments de 10~secondes, en mono, 16~kHz, à partir d’un microphone USB, via \texttt{PyAudio}.
+  \item \textbf{Prétraitement} : calcul du spectrogramme de Mel (128~bandes, FFT 1024, pas de 160~échantillons), passage en échelle logarithmique puis normalisation (centrage, réduction).
+  \item \textbf{Inférence ONNX Runtime} : redimensionnement du spectrogramme en tenseur $(1,1,128,128)$, passage dans le modèle \texttt{audiomae\_int8.onnx} via le fournisseur \texttt{CPUExecutionProvider}, obtention des logits puis des probabilités par \emph{softmax}.
+  \item \textbf{Décision} : application d’un seuil de confiance, typiquement 0{,}70, sur la probabilité maximale ; en dessous du seuil, la prédiction est rejetée ou marquée comme incertaine, au-dessus une alerte est générée et journalisée.
+\end{enumerate}
+
+\begin{algorithm}[H]
+  \DontPrintSemicolon
+  \SetAlgoLined
+  \KwIn{Flux audio continu}
+  \While{système actif}{
+    Acquérir un segment audio de 10~s (16~kHz, mono)\;
+    Calculer le spectrogramme de Mel $(128\times128)$ et le normaliser\;
+    Passer le tenseur $(1,1,128,128)$ dans le modèle ONNX (INT8)\;
+    Calculer les probabilités par \emph{softmax} et la classe la plus probable\;
+    Appliquer le seuil $p \geq 0{,}70$ ; publier la classe ou rejeter\;
+    Journaliser les latences et probabilités\;
+  }
+  \caption{Boucle d'inférence embarquée.}
+  \label{alg:inference}
+\end{algorithm}
+
+\section{Validation embarquée et tests terrain}
+Un protocole de tests terrain inclut, par exemple : (i) des scénarios de bruit urbain, (ii) des passages de véhicules à différentes vitesses et distances, (iii) des sons faibles en arrière-plan. Dans le cadre de ce projet, une première validation a été menée sur poste de développement (\texttt{PERFORMANCE\_REPORT.md}, \texttt{QUICK\_PERFORMANCE\_SUMMARY.md}) afin d’anticiper le comportement sur Raspberry~Pi~5 :
+\begin{itemize}
+  \item \textbf{Latence totale} mesurée à 46{,}01~ms en moyenne (prétraitement + inférence) sur PC, soit un facteur 10{,}9 plus rapide que la cible de 500~ms ;
+  \item \textbf{Mémoire} utilisée d’environ 588~Mo pour le modèle FP32, ce qui laisse une marge confortable sur une carte 8~Go ;
+  \item \textbf{Projections Raspberry~Pi~5} : latence totale estimée entre 260 et 340~ms avec le modèle INT8, mémoire autour de 800~Mo, précision attendue légèrement inférieure à 82{,}15~\% mais supérieure à 80~\%.
+\end{itemize}
+
+Ces résultats indiquent que le système est \textbf{compatible avec un usage temps réel embarqué} et qu’il dispose d’une marge importante pour intégrer des modules complémentaires (journalisation avancée, alertes réseau, interface de supervision). Les tests terrain sur rover NOMAD, avec de véritables enregistrements de véhicules, constituent l’étape suivante nécessaire pour valider le comportement du système dans des conditions opérationnelles réelles.
